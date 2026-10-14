@@ -7,3 +7,4 @@ dist/
 *.deb
 *.rpm
 /packaging/debian/.debhelper/
+*.zip
