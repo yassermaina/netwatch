@@ -87,9 +87,14 @@ sudo apt install ./build/netwatch_1.0.0-1_all.deb
 **Fedora / RPM:**
 
 ```sh
-git archive --prefix=netwatch-1.0.0/ -o ~/rpmbuild/SOURCES/netwatch-1.0.0.tar.gz HEAD
-rpmbuild -ba packaging/rpm/netwatch.spec
+sudo dnf install rpm-build make python3      # build tools (once)
+make rpm                                     # builds build/rpm/RPMS/noarch/netwatch-1.0.0-1.fcNN.noarch.rpm
+sudo dnf install ./build/rpm/RPMS/noarch/netwatch-*.noarch.rpm   # pulls in GTK4, Libadwaita, PyGObject, ...
 ```
+
+`dnf install ./file.rpm` resolves and installs the dependencies (python3-gobject, python3-cairo, gtk4, libadwaita,
+iputils) automatically. The package is tied to your Fedora release's Python version, so rebuild it after a
+Fedora version upgrade. Remove it with `sudo dnf remove netwatch`.
 
 **Manual install** (Python package plus desktop file, metainfo and icons):
 
@@ -285,7 +290,7 @@ These need a real session and network, which an automated container cannot provi
 - Every reported time is a detection time, accurate to about one check interval. Brief failures shorter than *interval × failure threshold* are not reported as outages.
 - Wi-Fi details depend on what NetworkManager or `iw` expose. Fields that cannot be observed are omitted, never guessed.
 - Monitoring runs in the user session (no system daemon). It stops while the user is logged out, and that time is shown as App Not Running.
-- RPM packaging is provided but was not built in the development environment, because rpmbuild was unavailable there. The DEB package was built, installed, launched and removed there.
+- The DEB package was built, installed, launched and removed in the development environment. The RPM was built there and installed, verified and removed with Fedora 41's `rpm` in a container. Fedora package mirrors were unreachable, so the app was not launched on Fedora itself and `dnf` dependency resolution was not exercised.
 
 ## License
 

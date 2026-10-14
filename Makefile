@@ -7,10 +7,10 @@ DATADIR = $(DESTDIR)$(PREFIX)/share
 PYTHON ?= python3
 APP_ID = io.github.netwatch.NetWatch
 
-.PHONY: all test install install-data install-python run deb clean
+.PHONY: all test install install-data install-python run deb rpm clean
 
 all:
-	@echo "Targets: test, run, install, install-data, deb"
+	@echo "Targets: test, run, install, install-data, deb, rpm"
 
 test:
 	@$(PYTHON) -c "import pytest" 2>/dev/null || { \
@@ -39,6 +39,9 @@ install: install-python install-data
 
 deb:
 	./packaging/build-deb.sh
+
+rpm:
+	./packaging/build-rpm.sh
 
 clean:
 	rm -rf build dist *.egg-info .pytest_cache
