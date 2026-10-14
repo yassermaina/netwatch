@@ -46,7 +46,8 @@ STATE_FILTERS = [
     ("unmonitored", "Not monitored (app not running, paused, unknown)",
      {ConnState.NOT_RUNNING, ConnState.PAUSED, ConnState.UNKNOWN}),
 ]
-PAGE_SIZE = 150
+PAGE_SIZE = 60
+JUMP_CONTEXT = 10  # rows shown above an event that is jumped to
 
 
 class EventRow(Gtk.ListBoxRow):
@@ -116,7 +117,8 @@ class HistoryPage(Gtk.Box):
         self.data: Optional[HistoryData] = None
         self.events: list[Segment] = []
         self.filtered: list[Segment] = []
-        self.rendered = 0
+        self.win_start = 0  # index in self.filtered of the first rendered row
+        self.rendered = 0  # index in self.filtered after the last rendered row
         self.rows: list[EventRow] = []
         self.day_filter: Optional[DayStats] = None
         self.gen = Generation()
@@ -289,6 +291,11 @@ class HistoryPage(Gtk.Box):
             filters.append(w)
             w.get_parent().set_focusable(False)
         self.log_section.append(filters)
+        self.newer_button = Gtk.Button(label="Show Newer Events", halign=Gtk.Align.CENTER, margin_bottom=4)
+        self.newer_button.add_css_class("pill")
+        self.newer_button.connect("clicked", lambda *_: self._render_newer())
+        self.newer_button.set_visible(False)
+        self.log_section.append(self.newer_button)
         self.listbox = Gtk.ListBox(selection_mode=Gtk.SelectionMode.SINGLE)
         self.listbox.add_css_class("nw-event-list")
         self.listbox.connect("row-activated", self._on_row_activated)
@@ -413,9 +420,12 @@ class HistoryPage(Gtk.Box):
         self.events = list(reversed(data.segments))
         new_keys = [s.key for s in self.events]
         if soft and new_keys == prev_keys and self.rows:
-            for row, seg in zip(self.rows, self.events[: len(self.rows)]):
-                row.seg = seg
-                row.duration.set_label(format_duration(seg.duration))
+            by_key = {seg.key: seg for seg in self.events}
+            for row in self.rows:  # only durations of ongoing periods change
+                seg = by_key.get(row.seg.key)
+                if seg is not None:
+                    row.seg = seg
+                    row.duration.set_label(format_duration(seg.duration))
         else:
             self._apply_filters(keep_selection=True)
 
@@ -448,10 +458,7 @@ class HistoryPage(Gtk.Box):
         target = self.target_options[self.target_filter.get_selected()] if self.target_options else None
         text = self.search.get_text().strip().lower()
         self.filtered = [s for s in self.events if self._matches(s, states, target, text)]
-        self.listbox.remove_all()
-        self.rows = []
-        self.rendered = 0
-        self._render_more()
+        self._reset_window(0)
         total = len(self.events)
         shown = len(self.filtered)
         self.count_label.set_label(f"{shown} of {total} events" if shown != total else f"{total} events")
@@ -461,20 +468,47 @@ class HistoryPage(Gtk.Box):
         if selected_key:
             self._select_key(selected_key, scroll=False)
 
+    def _make_row(self, seg: Segment, now: float) -> EventRow:
+        outage = self.data.outages_by_id.get(seg.outage_id) if seg.outage_id else None
+        return EventRow(seg, outage, now)
+
+    def _reset_window(self, start: int) -> None:
+        """Render a page of rows starting at ``start`` (only a window of the list is ever built)."""
+        self.listbox.remove_all()
+        self.rows = []
+        self.win_start = self.rendered = max(0, min(start, len(self.filtered)))
+        self._render_more()
+
+    def _update_pager(self) -> None:
+        remaining = len(self.filtered) - self.rendered
+        self.more_button.set_visible(remaining > 0)
+        self.more_button.set_label(f"Show More ({remaining} remaining)")
+        self.newer_button.set_visible(self.win_start > 0)
+        self.newer_button.set_label(f"Show Newer Events ({self.win_start})")
+
     def _render_more(self) -> None:
         if self.data is None:
             return
         now = time.time()
         end = min(len(self.filtered), self.rendered + PAGE_SIZE)
-        outages = self.data.outages_by_id
         for seg in self.filtered[self.rendered:end]:
-            row = EventRow(seg, outages.get(seg.outage_id) if seg.outage_id else None, now)
+            row = self._make_row(seg, now)
             self.listbox.append(row)
             self.rows.append(row)
         self.rendered = end
-        remaining = len(self.filtered) - self.rendered
-        self.more_button.set_visible(remaining > 0)
-        self.more_button.set_label(f"Show More ({remaining} remaining)")
+        self._update_pager()
+
+    def _render_newer(self) -> None:
+        if self.data is None or self.win_start == 0:
+            return
+        now = time.time()
+        start = max(0, self.win_start - PAGE_SIZE)
+        for i, seg in enumerate(self.filtered[start:self.win_start]):
+            row = self._make_row(seg, now)
+            self.listbox.insert(row, i)
+            self.rows.insert(i, row)
+        self.win_start = start
+        self._update_pager()
 
     def _on_edge(self, scroller, pos) -> None:
         if pos == Gtk.PositionType.BOTTOM and self.rendered < len(self.filtered):
@@ -484,9 +518,12 @@ class HistoryPage(Gtk.Box):
         idx = next((i for i, s in enumerate(self.filtered) if s.key == key), None)
         if idx is None:
             return False
-        while self.rendered <= idx:
-            self._render_more()
-        row = self.rows[idx]
+        if not (self.win_start <= idx < self.rendered):
+            if self.rendered <= idx < self.rendered + PAGE_SIZE:
+                self._render_more()  # just past the end: extend
+            else:
+                self._reset_window(idx - JUMP_CONTEXT)  # far away: jump the window, never build thousands of rows
+        row = self.rows[idx - self.win_start]
         self.listbox.select_row(row)
         if scroll:
             GLib.idle_add(lambda: (row.grab_focus(), GLib.SOURCE_REMOVE)[1])

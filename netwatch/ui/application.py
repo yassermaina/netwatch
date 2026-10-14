@@ -72,8 +72,11 @@ SHORTCUTS_UI = """
 
 
 class NetWatchApplication(Adw.Application):
-    def __init__(self, db_path: Path, background_mode: bool = False):
-        super().__init__(application_id=APP_ID, flags=Gio.ApplicationFlags.HANDLES_COMMAND_LINE)
+    def __init__(self, db_path: Path, background_mode: bool = False, non_unique: bool = False):
+        flags = Gio.ApplicationFlags.HANDLES_COMMAND_LINE
+        if non_unique:  # tests / tools: do not talk to a running instance
+            flags |= Gio.ApplicationFlags.NON_UNIQUE
+        super().__init__(application_id=APP_ID, flags=flags)
         self.db_path = db_path
         self.start_hidden = background_mode
         self.window = None
