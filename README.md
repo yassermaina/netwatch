@@ -210,9 +210,23 @@ Why there is no libappindicator: it is GTK 3-only and cannot be loaded into a GT
 
 ## Testing
 
+The tests need **pytest**. Install it from your distribution so it uses the same Python as PyGObject:
+
 ```sh
+# Fedora
+sudo dnf install python3-pytest
+# Debian / Ubuntu
+sudo apt install python3-pytest
+# GUI tests additionally need Xvfb and D-Bus (skipped automatically if missing)
+sudo dnf install xorg-x11-server-Xvfb dbus-daemon     # Fedora
+sudo apt install xvfb dbus                            # Debian / Ubuntu
+
 make test          # or: python3 -m pytest -q
 ```
+
+On distributions that block `pip install` into the system Python (PEP 668), you can use a virtual environment that
+can still see the system GTK bindings: `python3 -m venv --system-site-packages .venv && .venv/bin/pip install pytest
+&& make test PYTHON=.venv/bin/python`.
 
 The suite has 59 tests and needs no internet connection, because network checks are mocked:
 

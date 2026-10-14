@@ -21,6 +21,9 @@ classifiers = [
 # declared here so pip never tries to build them.
 dependencies = []
 
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
 [project.scripts]
 netwatch = "netwatch.main:main"
 

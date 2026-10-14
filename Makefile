@@ -13,6 +13,13 @@ all:
 	@echo "Targets: test, run, install, install-data, deb"
 
 test:
+	@$(PYTHON) -c "import pytest" 2>/dev/null || { \
+		echo "pytest is not installed for $(PYTHON)."; \
+		echo "  Fedora:        sudo dnf install python3-pytest"; \
+		echo "  Debian/Ubuntu: sudo apt install python3-pytest"; \
+		echo "  (or use a venv created with --system-site-packages so GTK bindings stay visible)"; \
+		exit 1; }
+	@$(PYTHON) -c "import gi" 2>/dev/null || echo "note: PyGObject not found for $(PYTHON); GUI tests will be skipped."
 	$(PYTHON) -m pytest -q
 
 run:
