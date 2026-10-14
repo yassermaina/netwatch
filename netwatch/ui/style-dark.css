@@ -1,0 +1,18 @@
+/* Dark charcoal / navy palette from the Outage History reference design. */
+@define-color window_bg_color #1f2231;
+@define-color window_fg_color #f2f2f7;
+@define-color view_bg_color #1f2231;
+@define-color headerbar_bg_color #1f2231;
+@define-color headerbar_backdrop_color #1f2231;
+@define-color sidebar_bg_color #191c29;
+@define-color sidebar_backdrop_color #191c29;
+@define-color card_bg_color #262a3a;
+@define-color popover_bg_color #2a2e40;
+@define-color dialog_bg_color #23273a;
+@define-color accent_bg_color #3b7cf6;
+@define-color accent_color #6ea0ff;
+
+@define-color nw_green #34c759;
+@define-color nw_orange #ff9f0a;
+@define-color nw_gray #8e8e93;
+@define-color nw_indigo #7d7aff;

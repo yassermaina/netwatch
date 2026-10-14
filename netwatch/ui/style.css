@@ -1,0 +1,92 @@
+/* NetWatch base styles (both themes). */
+
+@define-color nw_green #26a644;
+@define-color nw_orange #e88a00;
+@define-color nw_gray #808087;
+@define-color nw_indigo #5e5ce6;
+
+.nw-page-content { padding: 18px 28px 36px 28px; }
+window.nw-compact .nw-page-content { padding: 10px 18px 24px 18px; }
+
+.nw-section { margin-top: 26px; }
+window.nw-compact .nw-section { margin-top: 16px; }
+.nw-section-title { font-weight: 700; font-size: 1.3em; }
+.nw-subtitle { font-size: 0.95em; }
+
+/* Period toolbar */
+.nw-toolbar { padding: 12px 28px; border-bottom: 1px solid alpha(currentColor, 0.08); }
+.nw-segmented { background: alpha(currentColor, 0.07); border-radius: 9px; padding: 3px; }
+.nw-segmented > button {
+  background: none; border-radius: 7px; padding: 4px 16px; min-height: 26px;
+  font-weight: 500; box-shadow: none;
+}
+.nw-segmented > button:hover { background: alpha(currentColor, 0.07); }
+.nw-segmented > button:checked, .nw-segmented > button:checked:hover {
+  background: @accent_bg_color; color: @accent_fg_color;
+}
+.nw-icon-button { border-radius: 9px; min-width: 40px; min-height: 34px; background: alpha(currentColor, 0.07); }
+
+/* Metrics */
+.nw-metric-label { font-size: 1.0em; }
+.nw-metric-value {
+  font-size: 2.2em; font-weight: 700; font-feature-settings: "tnum";
+}
+window.nw-compact .nw-metric-value { font-size: 1.7em; }
+.nw-metric-value.small { font-size: 1.5em; }
+.nw-good { color: @nw_green; }
+.nw-warn { color: @nw_orange; }
+.nw-muted-value { color: alpha(currentColor, 0.55); }
+.nw-card {
+  background: alpha(currentColor, 0.04); border-radius: 12px; padding: 14px 16px;
+  border: 1px solid alpha(currentColor, 0.05);
+}
+
+/* State dots + pills */
+.nw-dot { min-width: 10px; min-height: 10px; border-radius: 99px; background: @nw_gray; }
+.nw-dot.online { background: @nw_green; }
+.nw-dot.no-internet { background: @nw_orange; }
+.nw-dot.not-connected { background: @nw_gray; }
+.nw-dot.unknown { background: @nw_indigo; }
+.nw-dot.minor { background: mix(@nw_green, @nw_orange, 0.3); border-radius: 3px; }
+.nw-dot.major { background: mix(@nw_orange, #e0441a, 0.35); border-radius: 3px; }
+.nw-dot.unmonitored-day { background: alpha(currentColor, 0.15); border: 1px dashed alpha(currentColor, 0.5);
+  border-radius: 3px; min-width: 8px; min-height: 8px; }
+.nw-dot.unmonitored { background: none; min-height: 2px; min-width: 12px; border-radius: 1px;
+  background-color: alpha(currentColor, 0.45); }
+.nw-pill { border-radius: 99px; padding: 2px 10px; font-size: 0.9em; font-weight: 600;
+  background: alpha(currentColor, 0.08); }
+.nw-pill.running { background: alpha(@nw_green, 0.18); color: @nw_green; }
+.nw-pill.paused { background: alpha(@nw_orange, 0.18); color: @nw_orange; }
+.nw-pill.error { background: alpha(@error_color, 0.18); color: @error_color; }
+.nw-pill.outage { background: alpha(@nw_orange, 0.18); color: @nw_orange; }
+
+/* Big status on Overview */
+.nw-status-card { border-radius: 16px; padding: 22px 24px; background: alpha(currentColor, 0.04); }
+.nw-status-card.online { background: alpha(@nw_green, 0.12); }
+.nw-status-card.no-internet { background: alpha(@nw_orange, 0.14); }
+.nw-status-card.not-connected { background: alpha(@nw_gray, 0.16); }
+.nw-status-title { font-size: 2.0em; font-weight: 800; }
+.nw-status-icon { -gtk-icon-size: 48px; }
+.nw-status-card.online .nw-status-icon, .nw-status-card.online .nw-status-title { color: @nw_green; }
+.nw-status-card.no-internet .nw-status-icon, .nw-status-card.no-internet .nw-status-title { color: @nw_orange; }
+
+/* Event log */
+.nw-event-list { background: none; }
+.nw-event-list > row { padding: 10px 6px; border-bottom: 1px solid alpha(currentColor, 0.07); border-radius: 8px; }
+window.nw-compact .nw-event-list > row { padding: 5px 6px; }
+.nw-event-list > row:selected { background: alpha(@accent_bg_color, 0.22); }
+.nw-event-title { font-weight: 500; }
+.nw-event-sub { font-size: 0.95em; }
+.nw-event-detail { font-size: 0.9em; }
+.nw-duration { font-feature-settings: "tnum"; font-size: 1.15em; }
+.nw-badge { font-size: 0.8em; font-weight: 600; padding: 1px 7px; border-radius: 6px;
+  background: alpha(@nw_orange, 0.18); color: @nw_orange; }
+.nw-badge.neutral { background: alpha(currentColor, 0.09); color: alpha(currentColor, 0.75); }
+
+.nw-legend { font-size: 0.95em; }
+.nw-filter-chip { border-radius: 99px; padding: 0 4px 0 10px; background: alpha(@accent_bg_color, 0.2); }
+
+.nw-chart-frame { border-radius: 12px; background: alpha(currentColor, 0.03); padding: 8px; }
+.nw-mono { font-family: monospace; font-size: 0.92em; }
+.nw-table-header { font-weight: 600; font-size: 0.9em; }
+.nw-num { font-feature-settings: "tnum"; }
