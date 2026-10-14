@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.netwatch.NetWatch</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <name>NetWatch</name>
+  <summary>Monitor internet connectivity and outages</summary>
+  <description>
+    <p>
+      NetWatch continuously checks your internet connection, detects outages, measures latency and packet loss,
+      and keeps a local history you can explore and export. Everything stays on your computer: no account,
+      cloud service or subscription.
+    </p>
+    <ul>
+      <li>Distinguishes “no internet” from “not connected” and from times NetWatch was not running</li>
+      <li>Outage history with calendar heat map, event timeline and searchable event log</li>
+      <li>Latency and packet loss charts per target</li>
+      <li>Subtle sound alerts and desktop notifications</li>
+      <li>TXT, CSV and HTML reports suitable for support requests</li>
+      <li>Keeps monitoring in the background, with an optional status icon</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">io.github.netwatch.NetWatch.desktop</launchable>
+  <developer id="io.github.netwatch">
+    <name>NetWatch contributors</name>
+  </developer>
+  <url type="homepage">https://github.com/netwatch-app/netwatch</url>
+  <content_rating type="oars-1.1"/>
+  <requires>
+    <display_length compare="ge">360</display_length>
+  </requires>
+  <supports>
+    <control>keyboard</control>
+    <control>pointing</control>
+  </supports>
+  <categories>
+    <category>Network</category>
+    <category>Monitor</category>
+  </categories>
+  <releases>
+    <release version="1.0.0" date="2026-10-14">
+      <description><p>First release.</p></description>
+    </release>
+  </releases>
+</component>

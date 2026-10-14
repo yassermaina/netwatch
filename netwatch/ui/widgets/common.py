@@ -10,8 +10,9 @@ from netwatch.models import ConnState
 from netwatch.ui.palette import css_class
 
 
-def label(text: str = "", classes: tuple[str, ...] = (), xalign: float = 0.0, wrap: bool = False,
-          selectable: bool = False) -> Gtk.Label:
+def label(
+    text: str = "", classes: tuple[str, ...] = (), xalign: float = 0.0, wrap: bool = False, selectable: bool = False
+) -> Gtk.Label:
     lbl = Gtk.Label(label=text, xalign=xalign)
     for c in classes:
         lbl.add_css_class(c)
@@ -82,8 +83,9 @@ class MetricTile(Gtk.Box):
     def set(self, value: str, note: str = "", muted: bool = False, suffix: str = "") -> None:
         """``suffix`` is shown in a smaller size after the value, e.g. a percentage."""
         if suffix:
-            self.value.set_markup(f"{GLib.markup_escape_text(value)} "
-                                  f"<span size='72%'>{GLib.markup_escape_text(suffix)}</span>")
+            self.value.set_markup(
+                f"{GLib.markup_escape_text(value)} <span size='72%'>{GLib.markup_escape_text(suffix)}</span>"
+            )
             value = f"{value} {suffix}"
         else:
             self.value.set_label(value)
@@ -122,7 +124,6 @@ def flow_append(fb: Gtk.FlowBox, widget: Gtk.Widget) -> None:
     child = widget.get_parent()
     if child is not None:
         child.set_focusable(False)
-
 
 
 # Column counts per window-width tier, applied by window breakpoints:

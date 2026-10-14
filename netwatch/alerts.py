@@ -122,7 +122,9 @@ class SoundPlayer:
         with self._lock:
             try:
                 self._proc = subprocess.Popen(
-                    [*self.backend, str(path)], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                    [*self.backend, str(path)],
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                 )
             except OSError as exc:

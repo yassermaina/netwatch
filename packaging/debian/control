@@ -1,0 +1,34 @@
+Source: netwatch
+Section: net
+Priority: optional
+Maintainer: NetWatch contributors <netwatch@example.invalid>
+Build-Depends: debhelper-compat (= 13),
+               dh-python,
+               python3-all,
+               python3-setuptools,
+               pybuild-plugin-pyproject,
+               desktop-file-utils
+Standards-Version: 4.6.2
+Homepage: https://github.com/netwatch-app/netwatch
+Rules-Requires-Root: no
+
+Package: netwatch
+Architecture: all
+Depends: ${python3:Depends},
+         ${misc:Depends},
+         python3 (>= 3.10),
+         python3-gi (>= 3.42),
+         python3-gi-cairo,
+         gir1.2-gtk-4.0 (>= 4.12),
+         gir1.2-adw-1 (>= 1.4),
+         iputils-ping
+Recommends: network-manager,
+            pipewire-bin | pulseaudio-utils | alsa-utils
+Suggests: iw
+Description: local-first network connectivity and outage monitor
+ NetWatch continuously monitors internet connectivity, detects outages,
+ measures latency and packet loss, records a local SQLite history and
+ generates TXT, CSV and HTML reports. It distinguishes "no internet" from
+ "not connected" and from periods when the application was not running.
+ .
+ Built with GTK 4 and Libadwaita.

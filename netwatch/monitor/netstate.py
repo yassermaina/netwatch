@@ -211,7 +211,9 @@ class LocalNetworkProbe:
             ifaces = [p.name for p in net.iterdir() if p.name != "lo"]
         except OSError:
             return LocalNetworkStatus(connected=None, source="unknown", detail="cannot read /sys/class/net")
-        up = [i for i in ifaces if _read(net / i / "operstate") in ("up", "unknown") and _read(net / i / "carrier") == "1"]
+        up = [
+            i for i in ifaces if _read(net / i / "operstate") in ("up", "unknown") and _read(net / i / "carrier") == "1"
+        ]
         default_ifaces: list[str] = []
         try:
             for line in route_file.read_text().splitlines()[1:]:
@@ -230,11 +232,18 @@ class LocalNetworkProbe:
         usable = [i for i in default_ifaces if i in up]
         if usable:
             iface = usable[0]
-            kind = "wifi" if (net / iface / "wireless").exists() or (net / iface / "phy80211").exists() else (
-                "ethernet" if _read(net / iface / "type") == "1" and not iface.startswith(("tun", "wg", "veth")) else "other"
+            kind = (
+                "wifi"
+                if (net / iface / "wireless").exists() or (net / iface / "phy80211").exists()
+                else (
+                    "ethernet"
+                    if _read(net / iface / "type") == "1" and not iface.startswith(("tun", "wg", "veth"))
+                    else "other"
+                )
             )
-            status = LocalNetworkStatus(connected=True, source="sysfs", interface=iface, kind=kind,
-                                        detail=f"default route via {iface}")
+            status = LocalNetworkStatus(
+                connected=True, source="sysfs", interface=iface, kind=kind, detail=f"default route via {iface}"
+            )
             if kind == "wifi":
                 status.wifi = WifiInfo()
                 self._fill_iw(status.wifi, iface)
@@ -243,7 +252,9 @@ class LocalNetworkProbe:
             return LocalNetworkStatus(connected=False, source="sysfs", detail="no network interface is up")
         if not default_ifaces:
             return LocalNetworkStatus(connected=False, source="sysfs", detail="no default route")
-        return LocalNetworkStatus(connected=None, source="sysfs", detail="default route on an interface without carrier")
+        return LocalNetworkStatus(
+            connected=None, source="sysfs", detail="default route on an interface without carrier"
+        )
 
 
 def _read(path: Path) -> str:

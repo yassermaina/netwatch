@@ -74,8 +74,9 @@ class MainWindow(Adw.ApplicationWindow):
         quit_section = Gio.Menu()
         quit_section.append("Quit", "app.quit")
         menu.append_section(None, quit_section)
-        menu_btn = Gtk.MenuButton(icon_name="open-menu-symbolic", menu_model=menu, tooltip_text="Main menu",
-                                  primary=True)
+        menu_btn = Gtk.MenuButton(
+            icon_name="open-menu-symbolic", menu_model=menu, tooltip_text="Main menu", primary=True
+        )
         sb_header.pack_end(menu_btn)
         sidebar_tv.add_top_bar(sb_header)
         sb_scroll = Gtk.ScrolledWindow(hscrollbar_policy=Gtk.PolicyType.NEVER, vexpand=True)
@@ -98,8 +99,9 @@ class MainWindow(Adw.ApplicationWindow):
         self.header = Adw.HeaderBar()
         self.title_widget = Adw.WindowTitle(title="Overview")
         self.header.set_title_widget(self.title_widget)
-        self.mute_btn = Gtk.ToggleButton(icon_name="audio-volume-high-symbolic", tooltip_text="Mute alerts (M)",
-                                         action_name="app.mute")
+        self.mute_btn = Gtk.ToggleButton(
+            icon_name="audio-volume-high-symbolic", tooltip_text="Mute alerts (M)", action_name="app.mute"
+        )
         self.header.pack_end(self.mute_btn)
         self.content_tv.add_top_bar(self.header)
         self.banner = Adw.Banner(revealed=False)
@@ -112,8 +114,9 @@ class MainWindow(Adw.ApplicationWindow):
         self.content_tv.set_content(content_box)
         self.content_page = Adw.NavigationPage(title="Overview", child=self.content_tv)
 
-        self.split = Adw.NavigationSplitView(sidebar=sidebar_page, content=self.content_page,
-                                             min_sidebar_width=200, max_sidebar_width=260)
+        self.split = Adw.NavigationSplitView(
+            sidebar=sidebar_page, content=self.content_page, min_sidebar_width=200, max_sidebar_width=260
+        )
         self.split.set_show_content(True)
         self.toasts = Adw.ToastOverlay(child=self.split)
         self.set_content(self.toasts)
@@ -206,6 +209,7 @@ class MainWindow(Adw.ApplicationWindow):
                     return False  # never steal keys from text entry
                 callback()
                 return True
+
             return Gtk.CallbackAction.new(run)
 
         def act(name: str):
@@ -213,8 +217,11 @@ class MainWindow(Adw.ApplicationWindow):
 
         ctrl.add_shortcut(Gtk.Shortcut.new(Gtk.KeyvalTrigger.new(Gdk.KEY_m, 0), act("mute")))
         ctrl.add_shortcut(Gtk.Shortcut.new(Gtk.KeyvalTrigger.new(Gdk.KEY_space, 0), act("toggle-pause")))
-        ctrl.add_shortcut(Gtk.Shortcut.new(Gtk.KeyvalTrigger.new(Gdk.KEY_Escape, 0),
-                                           Gtk.CallbackAction.new(lambda *_: self.go_back())))
+        ctrl.add_shortcut(
+            Gtk.Shortcut.new(
+                Gtk.KeyvalTrigger.new(Gdk.KEY_Escape, 0), Gtk.CallbackAction.new(lambda *_: self.go_back())
+            )
+        )
         self.add_controller(ctrl)
 
     def _export_shortcut(self) -> None:
@@ -225,8 +232,9 @@ class MainWindow(Adw.ApplicationWindow):
         else:
             self.start_export(period="7d")
 
-    def start_export(self, period: str = "all", custom=None, focus: Optional[Segment] = None,
-                     fmt: Optional[str] = None) -> None:
+    def start_export(
+        self, period: str = "all", custom=None, focus: Optional[Segment] = None, fmt: Optional[str] = None
+    ) -> None:
         start_export(self.app, self, period, custom, focus, fmt)
 
     # ------------------------------------------------------------ feedback
@@ -237,8 +245,9 @@ class MainWindow(Adw.ApplicationWindow):
             t.connect("button-clicked", lambda *_: button[1]())
         self.toasts.add_toast(t)
 
-    def show_banner(self, text: Optional[str], button: Optional[str] = None,
-                    action: Optional[Callable[[], None]] = None) -> None:
+    def show_banner(
+        self, text: Optional[str], button: Optional[str] = None, action: Optional[Callable[[], None]] = None
+    ) -> None:
         if not text:
             self.banner.set_revealed(False)
             return
@@ -262,9 +271,12 @@ class MainWindow(Adw.ApplicationWindow):
         settings_page = self.pages["settings"]
         if settings_page.has_unsaved():
             dialogs.choose(
-                self, "Save changes to settings?", "Some settings have not been saved.",
+                self,
+                "Save changes to settings?",
+                "Some settings have not been saved.",
                 [("cancel", "Cancel", ""), ("discard", "Discard", "destructive"), ("save", "Save", "suggested")],
-                lambda rid: self._resolve_unsaved(rid), default="save",
+                lambda rid: self._resolve_unsaved(rid),
+                default="save",
             )
             return True
         return self.app.on_window_close_request()

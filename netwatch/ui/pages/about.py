@@ -76,42 +76,77 @@ class AboutPage(Gtk.Box):
             size = 0
         tray = app.tray
         return [
-            ("Application", [
-                ("Version", f"{APP_NAME} {__version__}", None),
-                ("Application ID", APP_ID, None),
-                ("Monitoring", f"{snap.lifecycle.label} · {snap.state.label}", None),
-                ("Session", str(snap.session_id) if snap.session_id else "none", None),
-            ]),
-            ("Runtime", [
-                ("Python", platform.python_version(), None),
-                ("GTK", f"{Gtk.get_major_version()}.{Gtk.get_minor_version()}.{Gtk.get_micro_version()}", None),
-                ("Libadwaita", f"{Adw.get_major_version()}.{Adw.get_minor_version()}.{Adw.get_micro_version()}", None),
-                ("PyGObject", gi.__version__, None),
-                ("SQLite", sqlite3.sqlite_version, None),
-                ("System", f"{platform.system()} {platform.release()} · {platform.machine()}", None),
-            ]),
-            ("Monitoring backend", [
-                ("ICMP (ping)", ping_info, ping_ok),
-                ("Local network status", backend, "NetworkManager" in backend),
-                ("Current interface", (local.describe() or str(local.connected)) if local else "not probed yet", None),
-                ("Last classification", app.engine.classifier.last_reason or "—", None),
-            ]),
-            ("Desktop integration", [
-                ("Sound alerts", app.sound_player.backend_name if app.sound_player.available else
-                 "no player found (install pipewire-utils, pulseaudio-utils or alsa-utils)", app.sound_player.available),
-                ("Notifications", "via GApplication (desktop notification portal / service)", True),
-                ("Status icon", tray.status_text() if tray else "disabled in settings",
-                 bool(tray and tray.available)),
-                ("Launch at login", "enabled" if autostart_enabled() else "disabled", None),
-            ]),
-            ("Data", [
-                ("Database", str(app.db.path), None),
-                ("Size", GLib.format_size(size), None),
-                ("Schema version", str(app.db.schema_version()), None),
-                ("Records", f"{counts['monitoring_sessions']} sessions · {counts['connection_states']} states · "
-                            f"{counts['outages']} outages · {counts['measurements']} measurements", None),
-                ("Log file", str(state_dir() / "netwatch.log"), None),
-            ]),
+            (
+                "Application",
+                [
+                    ("Version", f"{APP_NAME} {__version__}", None),
+                    ("Application ID", APP_ID, None),
+                    ("Monitoring", f"{snap.lifecycle.label} · {snap.state.label}", None),
+                    ("Session", str(snap.session_id) if snap.session_id else "none", None),
+                ],
+            ),
+            (
+                "Runtime",
+                [
+                    ("Python", platform.python_version(), None),
+                    ("GTK", f"{Gtk.get_major_version()}.{Gtk.get_minor_version()}.{Gtk.get_micro_version()}", None),
+                    (
+                        "Libadwaita",
+                        f"{Adw.get_major_version()}.{Adw.get_minor_version()}.{Adw.get_micro_version()}",
+                        None,
+                    ),
+                    ("PyGObject", gi.__version__, None),
+                    ("SQLite", sqlite3.sqlite_version, None),
+                    ("System", f"{platform.system()} {platform.release()} · {platform.machine()}", None),
+                ],
+            ),
+            (
+                "Monitoring backend",
+                [
+                    ("ICMP (ping)", ping_info, ping_ok),
+                    ("Local network status", backend, "NetworkManager" in backend),
+                    (
+                        "Current interface",
+                        (local.describe() or str(local.connected)) if local else "not probed yet",
+                        None,
+                    ),
+                    ("Last classification", app.engine.classifier.last_reason or "—", None),
+                ],
+            ),
+            (
+                "Desktop integration",
+                [
+                    (
+                        "Sound alerts",
+                        app.sound_player.backend_name
+                        if app.sound_player.available
+                        else "no player found (install pipewire-utils, pulseaudio-utils or alsa-utils)",
+                        app.sound_player.available,
+                    ),
+                    ("Notifications", "via GApplication (desktop notification portal / service)", True),
+                    (
+                        "Status icon",
+                        tray.status_text() if tray else "disabled in settings",
+                        bool(tray and tray.available),
+                    ),
+                    ("Launch at login", "enabled" if autostart_enabled() else "disabled", None),
+                ],
+            ),
+            (
+                "Data",
+                [
+                    ("Database", str(app.db.path), None),
+                    ("Size", GLib.format_size(size), None),
+                    ("Schema version", str(app.db.schema_version()), None),
+                    (
+                        "Records",
+                        f"{counts['monitoring_sessions']} sessions · {counts['connection_states']} states · "
+                        f"{counts['outages']} outages · {counts['measurements']} measurements",
+                        None,
+                    ),
+                    ("Log file", str(state_dir() / "netwatch.log"), None),
+                ],
+            ),
         ]
 
     def rebuild(self) -> None:
@@ -126,8 +161,9 @@ class AboutPage(Gtk.Box):
                 g.add(_row(name, value, ok))
                 lines.append(f"{name}: {value}")
         self.report_text = "\n".join(lines) + f"\nPython executable: {sys.executable}\n"
-        test = self._group("Connectivity test", "Runs one check against every enabled target now, without "
-                                                "recording it in the history.")
+        test = self._group(
+            "Connectivity test", "Runs one check against every enabled target now, without recording it in the history."
+        )
         self.test_rows = test
         btns = Gtk.Box(spacing=8, halign=Gtk.Align.END)
         run = Gtk.Button(label="Run Test")
@@ -160,8 +196,13 @@ class AboutPage(Gtk.Box):
             group.remove(spinner)
             button.set_sensitive(True)
             local, results = res
-            group.add(_row("Local network", (local.describe() or local.detail or "unknown") +
-                           f" (connected: {local.connected})", local.connected))
+            group.add(
+                _row(
+                    "Local network",
+                    (local.describe() or local.detail or "unknown") + f" (connected: {local.connected})",
+                    local.connected,
+                )
+            )
             for t, r in results:
                 if r is None:
                     group.add(_row(t.display, "no adapter", False))
@@ -170,8 +211,11 @@ class AboutPage(Gtk.Box):
                 else:
                     group.add(_row(t.display, f"{r.error.label}: {r.detail}", False))
 
-        run_async(work, done, lambda exc: (group.remove(spinner), button.set_sensitive(True),
-                                           group.add(_row("Error", str(exc), False))))
+        run_async(
+            work,
+            done,
+            lambda exc: (group.remove(spinner), button.set_sensitive(True), group.add(_row("Error", str(exc), False))),
+        )
 
     def _copy(self) -> None:
         Gdk.Display.get_default().get_clipboard().set(self.report_text)

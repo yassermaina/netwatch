@@ -230,8 +230,15 @@ class ReliabilityService:
                 state = ConnState.UNKNOWN
             segs.append(
                 Segment(
-                    state, s, e, ongoing=ongoing and e >= now - 1e-6, state_id=row["id"], session_id=row["session_id"],
-                    targets=row["targets"], interface=row["interface"], reason=row["reason"],
+                    state,
+                    s,
+                    e,
+                    ongoing=ongoing and e >= now - 1e-6,
+                    state_id=row["id"],
+                    session_id=row["session_id"],
+                    targets=row["targets"],
+                    interface=row["interface"],
+                    reason=row["reason"],
                 )
             )
             cursor = max(cursor, e)
@@ -288,8 +295,9 @@ class ReliabilityService:
         has_data = any(not s.synthetic for s in segs)
         return PeriodSummary(start, end, totals, outages, has_data)
 
-    def daily(self, start: float, end: float, segments: list[Segment], outages: list[OutageInfo],
-              now: float) -> list[DayStats]:
+    def daily(
+        self, start: float, end: float, segments: list[Segment], outages: list[OutageInfo], now: float
+    ) -> list[DayStats]:
         """Per local calendar day statistics, padded to whole weeks (Mon–Sun)."""
         first = datetime.fromtimestamp(start).date()
         last = datetime.fromtimestamp(min(end, now)).date()
@@ -363,23 +371,33 @@ class ReliabilityService:
             c = counts.get(tid)
             n = c["n"] if c else 0
             ok = (c["ok"] or 0) if c else 0
-            per_target[tid] = _latency_stats(v) | {"checks": n, "ok": ok,
-                                                   "loss_pct": (n - ok) / n * 100 if n else None}
+            per_target[tid] = _latency_stats(v) | {"checks": n, "ok": ok, "loss_pct": (n - ok) / n * 100 if n else None}
         total_n = sum(p["checks"] for p in per_target.values())
         total_ok = sum(p["ok"] for p in per_target.values())
         overall = _latency_stats(all_values) | {
-            "checks": total_n, "ok": total_ok, "loss_pct": (total_n - total_ok) / total_n * 100 if total_n else None
+            "checks": total_n,
+            "ok": total_ok,
+            "loss_pct": (total_n - total_ok) / total_n * 100 if total_n else None,
         }
-        return {"start": start, "end": end, "bucket": bucket, "series": series, "per_target": per_target,
-                "overall": overall}
+        return {
+            "start": start,
+            "end": end,
+            "bucket": bucket,
+            "series": series,
+            "per_target": per_target,
+            "overall": overall,
+        }
 
     def recent_quality(self, now: float, window: float = 300) -> dict:
         counts = self.repo.check_counts(now - window, now + 1)
         n = sum(r["n"] for r in counts)
         ok = sum(r["ok"] or 0 for r in counts)
         values = [r["latency_ms"] for r in self.repo.latency_values(now - window, now + 1)]
-        return {"checks": n, "loss_pct": (n - ok) / n * 100 if n else None,
-                "median_ms": statistics.median(values) if values else None}
+        return {
+            "checks": n,
+            "loss_pct": (n - ok) / n * 100 if n else None,
+            "median_ms": statistics.median(values) if values else None,
+        }
 
 
 def _latency_stats(values: list[float]) -> dict:
@@ -388,5 +406,11 @@ def _latency_stats(values: list[float]) -> dict:
     ordered = sorted(values)
     p95 = ordered[min(len(ordered) - 1, int(round(0.95 * (len(ordered) - 1))))]
     jitter = statistics.pstdev(ordered) if len(ordered) > 1 else 0.0
-    return {"avg": sum(ordered) / len(ordered), "median": statistics.median(ordered), "min": ordered[0],
-            "max": ordered[-1], "p95": p95, "jitter": jitter}
+    return {
+        "avg": sum(ordered) / len(ordered),
+        "median": statistics.median(ordered),
+        "min": ordered[0],
+        "max": ordered[-1],
+        "p95": p95,
+        "jitter": jitter,
+    }

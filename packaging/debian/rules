@@ -1,0 +1,13 @@
+#!/usr/bin/make -f
+export PYBUILD_NAME=netwatch
+
+%:
+	dh $@ --with python3 --buildsystem=pybuild
+
+override_dh_auto_install:
+	dh_auto_install
+	$(MAKE) install-data DESTDIR=$(CURDIR)/debian/netwatch PREFIX=/usr
+
+override_dh_auto_test:
+	# GUI tests need Xvfb and D-Bus; run the headless core suite only.
+	python3 -m pytest -q tests --ignore=tests/test_gui.py

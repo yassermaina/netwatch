@@ -17,8 +17,13 @@ from netwatch.ui.widgets.common import label
 if TYPE_CHECKING:
     from netwatch.ui.application import NetWatchApplication
 
-PERIODS = [("24h", "Last 24 hours"), ("7d", "Last 7 days"), ("30d", "Last 30 days"),
-           ("all", "All retained history"), ("custom", "Custom date range")]
+PERIODS = [
+    ("24h", "Last 24 hours"),
+    ("7d", "Last 7 days"),
+    ("30d", "Last 30 days"),
+    ("all", "All retained history"),
+    ("custom", "Custom date range"),
+]
 FORMATS = list(reports.FORMATS.items())
 
 
@@ -64,7 +69,7 @@ class ReportsPage(Gtk.Box):
         group = Adw.PreferencesGroup(
             title="Report",
             description="Reports include coverage, uptime, downtime, outages, the event timeline, monitoring "
-                        "interruptions and the limitations of the collected data.",
+            "interruptions and the limitations of the collected data.",
         )
         self.period_row = Adw.ComboRow(title="Time range", model=Gtk.StringList.new([p[1] for p in PERIODS]))
         self.period_row.set_selected(1)
@@ -95,8 +100,15 @@ class ReportsPage(Gtk.Box):
         page.add(actions)
 
         preview = Adw.PreferencesGroup(title="Preview", description="Plain-text summary of the selected range.")
-        self.preview_view = Gtk.TextView(editable=False, monospace=True, wrap_mode=Gtk.WrapMode.WORD_CHAR,
-                                         top_margin=12, bottom_margin=12, left_margin=12, right_margin=12)
+        self.preview_view = Gtk.TextView(
+            editable=False,
+            monospace=True,
+            wrap_mode=Gtk.WrapMode.WORD_CHAR,
+            top_margin=12,
+            bottom_margin=12,
+            left_margin=12,
+            right_margin=12,
+        )
         self.preview_view.update_property([Gtk.AccessibleProperty.LABEL], ["Report preview"])
         sc = Gtk.ScrolledWindow(min_content_height=320, max_content_height=480, propagate_natural_height=True)
         sc.set_child(self.preview_view)
@@ -179,8 +191,11 @@ class ReportsPage(Gtk.Box):
             self.recent_group.remove(row)
         self.recent_rows = []
         try:
-            files = sorted((p for p in folder.glob("netwatch-*") if p.suffix in (".txt", ".csv", ".html")),
-                           key=lambda p: p.stat().st_mtime, reverse=True)[:8]
+            files = sorted(
+                (p for p in folder.glob("netwatch-*") if p.suffix in (".txt", ".csv", ".html")),
+                key=lambda p: p.stat().st_mtime,
+                reverse=True,
+            )[:8]
         except OSError:
             files = []
         if not files:

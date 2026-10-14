@@ -59,8 +59,9 @@ class SettingsPage(Gtk.Box):
         self.load()
 
     # ------------------------------------------------------------ field helpers
-    def _spin(self, group: Adw.PreferencesGroup, key: str, title: str, lo: int, hi: int, subtitle: str = "",
-              step: int = 1) -> Adw.SpinRow:
+    def _spin(
+        self, group: Adw.PreferencesGroup, key: str, title: str, lo: int, hi: int, subtitle: str = "", step: int = 1
+    ) -> Adw.SpinRow:
         row = Adw.SpinRow.new_with_range(lo, hi, step)
         row.set_title(title)
         if subtitle:
@@ -77,32 +78,54 @@ class SettingsPage(Gtk.Box):
         self.fields[key] = (row, row.get_active, row.set_active)
         return row
 
-    def _combo(self, group: Adw.PreferencesGroup, key: str, title: str, options: list[tuple[str, str]],
-               subtitle: str = "") -> Adw.ComboRow:
+    def _combo(
+        self, group: Adw.PreferencesGroup, key: str, title: str, options: list[tuple[str, str]], subtitle: str = ""
+    ) -> Adw.ComboRow:
         row = Adw.ComboRow(title=title, subtitle=subtitle, model=Gtk.StringList.new([o[1] for o in options]))
         row.connect("notify::selected", lambda *_: self._changed())
         group.add(row)
         keys = [o[0] for o in options]
-        self.fields[key] = (row, lambda: keys[row.get_selected()],
-                            lambda v: row.set_selected(keys.index(v) if v in keys else 0))
+        self.fields[key] = (
+            row,
+            lambda: keys[row.get_selected()],
+            lambda v: row.set_selected(keys.index(v) if v in keys else 0),
+        )
         return row
 
     # ------------------------------------------------------------ groups
     def _build_monitoring(self) -> None:
-        g = Adw.PreferencesGroup(title="Monitoring",
-                                 description="Checks run in the background. A failure is confirmed only after the "
-                                             "failure threshold is reached on every target.")
+        g = Adw.PreferencesGroup(
+            title="Monitoring",
+            description="Checks run in the background. A failure is confirmed only after the "
+            "failure threshold is reached on every target.",
+        )
         self._spin(g, "interval_seconds", "Check interval", 1, 3600, "Seconds between check rounds")
-        self._spin(g, "timeout_seconds", "Timeout", 1, 60, "Seconds to wait for each reply; must be shorter than "
-                                                          "the interval")
-        self._spin(g, "failure_threshold", "Failure threshold", 1, 20,
-                   "Consecutive failed rounds before an outage is declared")
-        self._spin(g, "recovery_threshold", "Recovery threshold", 1, 20,
-                   "Consecutive successful rounds before recovery is confirmed")
-        self._spin(g, "latency_warning_ms", "High latency threshold", 1, 10000,
-                   "Milliseconds; latency above this is shown as degraded on the Performance page", step=10)
-        self._spin(g, "loss_warning_pct", "Packet loss threshold", 1, 100, "Percent of failed checks considered "
-                                                                          "degraded")
+        self._spin(
+            g, "timeout_seconds", "Timeout", 1, 60, "Seconds to wait for each reply; must be shorter than the interval"
+        )
+        self._spin(
+            g, "failure_threshold", "Failure threshold", 1, 20, "Consecutive failed rounds before an outage is declared"
+        )
+        self._spin(
+            g,
+            "recovery_threshold",
+            "Recovery threshold",
+            1,
+            20,
+            "Consecutive successful rounds before recovery is confirmed",
+        )
+        self._spin(
+            g,
+            "latency_warning_ms",
+            "High latency threshold",
+            1,
+            10000,
+            "Milliseconds; latency above this is shown as degraded on the Performance page",
+            step=10,
+        )
+        self._spin(
+            g, "loss_warning_pct", "Packet loss threshold", 1, 100, "Percent of failed checks considered degraded"
+        )
         self._switch(g, "start_monitoring_on_launch", "Start monitoring when NetWatch starts")
         self.page.add(g)
 
@@ -110,7 +133,7 @@ class SettingsPage(Gtk.Box):
         self.targets_group = Adw.PreferencesGroup(
             title="Targets",
             description="Connectivity is ONLINE while at least one enabled target responds. Changes to targets are "
-                        "applied immediately.",
+            "applied immediately.",
         )
         add = Gtk.Button(icon_name="list-add-symbolic", tooltip_text="Add target", valign=Gtk.Align.CENTER)
         add.add_css_class("flat")
@@ -121,9 +144,12 @@ class SettingsPage(Gtk.Box):
 
     def _build_alerts(self) -> None:
         player = self.app.sound_player
-        desc = (f"Sounds play through {player.backend_name}." if player.available else
-                "No sound player was found (pw-play, paplay or aplay). Alerts stay silent; monitoring and "
-                "notifications are unaffected.")
+        desc = (
+            f"Sounds play through {player.backend_name}."
+            if player.available
+            else "No sound player was found (pw-play, paplay or aplay). Alerts stay silent; monitoring and "
+            "notifications are unaffected."
+        )
         g = Adw.PreferencesGroup(title="Sound Alerts", description=desc)
         self._switch(g, "sound_enabled", "Sound alerts")
         vol = self._spin(g, "sound_volume", "Volume", 0, 100, "Percent", step=5)
@@ -157,12 +183,18 @@ class SettingsPage(Gtk.Box):
         if tray is not None and tray.available:
             tray_sub = "A status icon is shown by your desktop's StatusNotifier host."
         else:
-            tray_sub = ("No StatusNotifier host detected. On GNOME install the “AppIndicator and KStatusNotifierItem "
-                        "Support” extension. Without it, reopen NetWatch from the app launcher — launching it again "
-                        "shows the running instance.")
+            tray_sub = (
+                "No StatusNotifier host detected. On GNOME install the “AppIndicator and KStatusNotifierItem "
+                "Support” extension. Without it, reopen NetWatch from the app launcher — launching it again "
+                "shows the running instance."
+            )
         g = Adw.PreferencesGroup(title="Background")
-        self._switch(g, "hide_on_close", "Keep monitoring when the window is closed",
-                     "Closing the window hides it; use Quit (Ctrl+Q) to stop NetWatch")
+        self._switch(
+            g,
+            "hide_on_close",
+            "Keep monitoring when the window is closed",
+            "Closing the window hides it; use Quit (Ctrl+Q) to stop NetWatch",
+        )
         self._switch(g, "tray_enabled", "Show status icon", tray_sub)
         self._switch(g, "launch_at_login", "Launch at login", "Starts hidden and monitoring (XDG autostart)")
         self.page.add(g)
@@ -180,8 +212,14 @@ class SettingsPage(Gtk.Box):
         choose.connect("clicked", lambda *_: self._choose_reports_dir())
         self.reports_row.add_suffix(choose)
         g.add(self.reports_row)
-        self._spin(g, "retention_days", "Keep raw measurements for", 0, 3650,
-                   "Days (0 = forever). Outage and state history is always kept.")
+        self._spin(
+            g,
+            "retention_days",
+            "Keep raw measurements for",
+            0,
+            3650,
+            "Days (0 = forever). Outage and state history is always kept.",
+        )
         backup_row = Adw.ActionRow(title="Backup and restore", subtitle="Consistent copy made with SQLite's backup API")
         backup = Gtk.Button(label="Back Up…", valign=Gtk.Align.CENTER)
         backup.connect("clicked", lambda *_: self._backup())
@@ -299,12 +337,23 @@ class SettingsPage(Gtk.Box):
             self.app.repo.delete_target(target.id)
             self.app.targets_changed()
 
-        dialogs.confirm(self, f"Remove {target.name}?",
-                        "The target stops being monitored. Its past measurements stay in the history.", "Remove", do)
+        dialogs.confirm(
+            self,
+            f"Remove {target.name}?",
+            "The target stops being monitored. Its past measurements stay in the history.",
+            "Remove",
+            do,
+        )
 
     def _edit_target(self, target: Optional[Target]) -> None:
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12, margin_top=12, margin_bottom=12,
-                      margin_start=12, margin_end=12)
+        box = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL,
+            spacing=12,
+            margin_top=12,
+            margin_bottom=12,
+            margin_start=12,
+            margin_end=12,
+        )
         group = Adw.PreferencesGroup()
         name = Adw.EntryRow(title="Name", text=target.name if target else "")
         address = Adw.EntryRow(title="Address (IP, host name or URL)", text=target.address if target else "")
@@ -350,8 +399,11 @@ class SettingsPage(Gtk.Box):
 
     # ------------------------------------------------------------ data
     def _choose_reports_dir(self) -> None:
-        dlg = Gtk.FileDialog(title="Choose Reports Folder", modal=True,
-                             initial_folder=Gio.File.new_for_path(str(reports_dir(self.app).parent)))
+        dlg = Gtk.FileDialog(
+            title="Choose Reports Folder",
+            modal=True,
+            initial_folder=Gio.File.new_for_path(str(reports_dir(self.app).parent)),
+        )
 
         def done(d, res) -> None:
             try:
@@ -375,9 +427,11 @@ class SettingsPage(Gtk.Box):
             except GLib.Error:
                 return
             path = f.get_path()
-            run_async(lambda: self.app.db.backup_to(path),
-                      lambda _r: self.app.window.toast(f"Backup saved to {Path(path).name}"),
-                      lambda exc: dialogs.message(self, "Backup failed", str(exc)))
+            run_async(
+                lambda: self.app.db.backup_to(path),
+                lambda _r: self.app.window.toast(f"Backup saved to {Path(path).name}"),
+                lambda exc: dialogs.message(self, "Backup failed", str(exc)),
+            )
 
         dlg.save(self.app.window, None, done)
 
@@ -391,10 +445,12 @@ class SettingsPage(Gtk.Box):
                 return
             path = f.get_path()
             dialogs.confirm(
-                self, "Replace all history with this backup?",
+                self,
+                "Replace all history with this backup?",
                 f"The current database will be replaced by {Path(path).name}. Monitoring restarts afterwards. "
                 "Consider backing up the current data first.",
-                "Restore", lambda: self.app.restore_database(path),
+                "Restore",
+                lambda: self.app.restore_database(path),
             )
 
         dlg.open(self.app.window, None, done)
@@ -409,12 +465,20 @@ class SettingsPage(Gtk.Box):
                 return
             target = Path(f.get_path()) / "netwatch.db"
             if target.exists():
-                dialogs.message(self, "A database already exists there",
-                                f"{target} already exists. Choose another folder, or use Restore to load it.")
+                dialogs.message(
+                    self,
+                    "A database already exists there",
+                    f"{target} already exists. Choose another folder, or use Restore to load it.",
+                )
                 return
-            dialogs.confirm(self, "Move the database?",
-                            f"NetWatch will copy its data to {target} and use it from now on. The old file is left "
-                            "in place so you can delete it yourself.", "Move", lambda: self.app.relocate_database(target),
-                            destructive=False)
+            dialogs.confirm(
+                self,
+                "Move the database?",
+                f"NetWatch will copy its data to {target} and use it from now on. The old file is left "
+                "in place so you can delete it yourself.",
+                "Move",
+                lambda: self.app.relocate_database(target),
+                destructive=False,
+            )
 
         dlg.select_folder(self.app.window, None, done)

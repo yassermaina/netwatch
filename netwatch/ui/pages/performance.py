@@ -81,22 +81,30 @@ class PerformancePage(Gtk.Box):
             flow_append(self.tiles, card)
         content.append(responsive_flow(self.tiles, {"wide": 6, "large": 3, "medium": 3, "small": 3, "tiny": 2}))
 
-        head, _ = section_header("Latency over time", "Average per interval with min–max band. Gaps mean no "
-                                 "successful measurement; red ticks mark failed checks. Missing data is never drawn "
-                                 "as zero.")
+        head, _ = section_header(
+            "Latency over time",
+            "Average per interval with min–max band. Gaps mean no "
+            "successful measurement; red ticks mark failed checks. Missing data is never drawn "
+            "as zero.",
+        )
         head.add_css_class("nw-section")
         content.append(head)
         frame = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, margin_top=10)
         frame.add_css_class("nw-chart-frame")
         self.latency = LatencyChart(260)
         frame.append(self.latency)
-        self.legend = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE, max_children_per_line=6, column_spacing=16,
-                                  homogeneous=False)
+        self.legend = Gtk.FlowBox(
+            selection_mode=Gtk.SelectionMode.NONE, max_children_per_line=6, column_spacing=16, homogeneous=False
+        )
         frame.append(self.legend)
-        self.lat_inspect = label("Hover over the chart, or focus it and use the arrow keys, to inspect values.",
-                                 ("dim-label", "caption"), wrap=True)
-        self.latency.on_inspect = lambda t: self.lat_inspect.set_label(t or "Hover over the chart, or focus it and "
-                                                                       "use the arrow keys, to inspect values.")
+        self.lat_inspect = label(
+            "Hover over the chart, or focus it and use the arrow keys, to inspect values.",
+            ("dim-label", "caption"),
+            wrap=True,
+        )
+        self.latency.on_inspect = lambda t: self.lat_inspect.set_label(
+            t or "Hover over the chart, or focus it and use the arrow keys, to inspect values."
+        )
         frame.append(self.lat_inspect)
         content.append(frame)
 
@@ -140,8 +148,10 @@ class PerformancePage(Gtk.Box):
         now = time.time()
         if not soft:
             self.spinner.start()
-        run_async(lambda: (self.app.stats.performance(now - span, now, buckets=180), self.app.repo.targets_by_id()),
-                  lambda r: self._apply(token, r))
+        run_async(
+            lambda: (self.app.stats.performance(now - span, now, buckets=180), self.app.repo.targets_by_id()),
+            lambda r: self._apply(token, r),
+        )
 
     def _apply(self, token: int, result) -> None:
         if not self.gen.current(token):
@@ -156,13 +166,15 @@ class PerformancePage(Gtk.Box):
         self.t_max.set(_ms(o["max"]), f"p95 {_ms(o['p95'])}" if o["p95"] is not None else "", muted=o["max"] is None)
         self.t_loss.set(f"{o['loss_pct']:.1f}%" if o["loss_pct"] is not None else "—", muted=muted)
         self.t_checks.set(str(o["checks"]), f"{o['checks'] - o['ok']} failed" if o["checks"] else "", muted=muted)
-        self.summary_caption.set_label("No measurements in this range. Start monitoring to collect data." if muted else
-                                       f"Based on {o['ok']} successful replies. Jitter (std. dev.) "
-                                       f"{_ms(o['jitter'])}.")
+        self.summary_caption.set_label(
+            "No measurements in this range. Start monitoring to collect data."
+            if muted
+            else f"Based on {o['ok']} successful replies. Jitter (std. dev.) {_ms(o['jitter'])}."
+        )
         series = []
         while (child := self.legend.get_first_child()) is not None:
             self.legend.remove(child)
-        ordered = sorted(perf["series"].items(), key=lambda kv: (targets[kv[0]].position if kv[0] in targets else 99))
+        ordered = sorted(perf["series"].items(), key=lambda kv: targets[kv[0]].position if kv[0] in targets else 99)
         for i, (tid, pts) in enumerate(ordered):
             t = targets.get(tid)
             color = SERIES[i % len(SERIES)]
@@ -170,13 +182,19 @@ class PerformancePage(Gtk.Box):
             series.append({"name": name, "color": color, "points": pts})
             item = Gtk.Box(spacing=6)
             swatch = Gtk.DrawingArea(content_width=12, content_height=12, valign=Gtk.Align.CENTER)
-            swatch.set_draw_func(lambda _a, cr, w, h, c=color: (cr.set_source_rgb(*c), cr.arc(w / 2, h / 2, 5, 0, 6.3),
-                                                                 cr.fill()))
+            swatch.set_draw_func(
+                lambda _a, cr, w, h, c=color: (cr.set_source_rgb(*c), cr.arc(w / 2, h / 2, 5, 0, 6.3), cr.fill())
+            )
             item.append(swatch)
             item.append(label(f"{name} ({t.address})" if t else name))
             self.legend.append(item)
-        self.latency.set_data(perf["start"], perf["end"], perf["bucket"], series,
-                             interval=float(self.app.settings.get("interval_seconds")))
+        self.latency.set_data(
+            perf["start"],
+            perf["end"],
+            perf["bucket"],
+            series,
+            interval=float(self.app.settings.get("interval_seconds")),
+        )
         merged: dict[int, dict] = {}
         for pts in perf["series"].values():
             for p in pts:
@@ -197,8 +215,14 @@ class PerformancePage(Gtk.Box):
         for r, (tid, p) in enumerate(rows, start=1):
             t = targets.get(tid)
             cells = [
-                t.display if t else str(tid), _ms(p["avg"]), _ms(p["median"]), _ms(p["min"]), _ms(p["max"]),
-                _ms(p["p95"]), f"{p['loss_pct']:.1f}%" if p["loss_pct"] is not None else "—", str(p["checks"]),
+                t.display if t else str(tid),
+                _ms(p["avg"]),
+                _ms(p["median"]),
+                _ms(p["min"]),
+                _ms(p["max"]),
+                _ms(p["p95"]),
+                f"{p['loss_pct']:.1f}%" if p["loss_pct"] is not None else "—",
+                str(p["checks"]),
             ]
             for col, text in enumerate(cells):
                 self.table.attach(label(text, ("nw-num",), xalign=0 if col == 0 else 1), col, r, 1, 1)

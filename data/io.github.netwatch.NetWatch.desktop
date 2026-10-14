@@ -1,0 +1,18 @@
+[Desktop Entry]
+Type=Application
+Name=NetWatch
+GenericName=Network Monitor
+Comment=Monitor internet connectivity, outages and connection quality
+Exec=netwatch
+Icon=io.github.netwatch.NetWatch
+Terminal=false
+Categories=Network;Monitor;GTK;GNOME;
+Keywords=network;internet;outage;uptime;ping;latency;connectivity;
+StartupNotify=true
+DBusActivatable=false
+SingleMainWindow=true
+Actions=background;
+
+[Desktop Action background]
+Name=Start Monitoring in Background
+Exec=netwatch --background

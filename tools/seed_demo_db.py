@@ -42,8 +42,15 @@ def main() -> int:
     targets = repo.list_targets()
     now = time.time()
     t = now - args.days * 86400
-    wifi = LocalNetworkStatus(True, "networkmanager", "wlp2s0", "wifi", "Home WiFi", "full",
-                              WifiInfo("Home WiFi", 5180, 36, 82, -45, "802.11ax", "WPA2")).to_json()
+    wifi = LocalNetworkStatus(
+        True,
+        "networkmanager",
+        "wlp2s0",
+        "wifi",
+        "Home WiFi",
+        "full",
+        WifiInfo("Home WiFi", 5180, 36, 82, -45, "802.11ax", "WPA2"),
+    ).to_json()
     states, outages = [], []
     session_rows = []
     while t < now - 600:
@@ -74,24 +81,57 @@ def main() -> int:
             cur = conn.execute(
                 "INSERT INTO monitoring_sessions(started_at, ended_at, last_heartbeat, status, end_reason, "
                 "config_snapshot, app_version) VALUES (?,?,?,?,?,?,?)",
-                (s, None if running else e, e, "running" if running else "stopped", None if running else "normal",
-                 json.dumps({"demo": True}), "demo"))
+                (
+                    s,
+                    None if running else e,
+                    e,
+                    "running" if running else "stopped",
+                    None if running else "normal",
+                    json.dumps({"demo": True}),
+                    "demo",
+                ),
+            )
             ids.append(cur.lastrowid)
         conn.executemany(
             "INSERT INTO connection_states(session_id, state, started_at, ended_at, detected_at, targets, interface, reason) "
             "VALUES (?,?,?,?,?,?,?,?)",
-            [(ids[sidx - 1], st.value, s, e, s, "1.1.1.1" if st == ConnState.ONLINE else "1.1.1.1, 8.8.8.8, 9.9.9.9",
-              wifi if st != ConnState.NOT_CONNECTED else None,
-              None if st == ConnState.ONLINE else "all targets failed (Timed out)") for sidx, st, s, e in states])
+            [
+                (
+                    ids[sidx - 1],
+                    st.value,
+                    s,
+                    e,
+                    s,
+                    "1.1.1.1" if st == ConnState.ONLINE else "1.1.1.1, 8.8.8.8, 9.9.9.9",
+                    wifi if st != ConnState.NOT_CONNECTED else None,
+                    None if st == ConnState.ONLINE else "all targets failed (Timed out)",
+                )
+                for sidx, st, s, e in states
+            ],
+        )
         for sidx, st, s, e, recovered in outages:
             cur = conn.execute(
                 "INSERT INTO outages(session_id, classification, started_at, detected_at, ended_at, recovery_detected_at, "
                 "duration, status, start_observed, end_observed, evidence) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-                (ids[sidx - 1], st.value, s, s + 10, e, e + 10 if recovered else None, e - s,
-                 "recovered" if recovered else "monitoring_stopped", 1, int(recovered), "[]"))
+                (
+                    ids[sidx - 1],
+                    st.value,
+                    s,
+                    s + 10,
+                    e,
+                    e + 10 if recovered else None,
+                    e - s,
+                    "recovered" if recovered else "monitoring_stopped",
+                    1,
+                    int(recovered),
+                    "[]",
+                ),
+            )
             for tg in targets:
-                conn.execute("INSERT INTO outage_targets VALUES (?,?,?,?)",
-                             (cur.lastrowid, tg.id, max(1, int((e - s) / 5)), "timeout"))
+                conn.execute(
+                    "INSERT INTO outage_targets VALUES (?,?,?,?)",
+                    (cur.lastrowid, tg.id, max(1, int((e - s) / 5)), "timeout"),
+                )
         # raw measurements for the most recent days, every 30 s
         rows = []
         m_start = now - args.measure_days * 86400
@@ -103,14 +143,30 @@ def main() -> int:
                 for i, tg in enumerate(targets):
                     ok = st == ConnState.ONLINE and rnd.random() > 0.004
                     lat = (9 + i * 6) + rnd.gammavariate(2, 2.5) + (40 if rnd.random() < 0.01 else 0)
-                    rows.append((ts, ids[sidx - 1], tg.id, "icmp", int(ok), lat if ok else None, 1, int(ok),
-                                 "ok" if ok else "timeout", None))
+                    rows.append(
+                        (
+                            ts,
+                            ids[sidx - 1],
+                            tg.id,
+                            "icmp",
+                            int(ok),
+                            lat if ok else None,
+                            1,
+                            int(ok),
+                            "ok" if ok else "timeout",
+                            None,
+                        )
+                    )
                 ts += 30
         conn.executemany(
             "INSERT INTO measurements(ts, session_id, target_id, check_type, success, latency_ms, packets_sent, "
-            "packets_received, error_category, detail) VALUES (?,?,?,?,?,?,?,?,?,?)", rows)
-    print(f"wrote {out}: {len(session_rows)} sessions, {len(states)} states, {len(outages)} outages, "
-          f"{len(rows)} measurements (synthetic demo data)")
+            "packets_received, error_category, detail) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            rows,
+        )
+    print(
+        f"wrote {out}: {len(session_rows)} sessions, {len(states)} states, {len(outages)} outages, "
+        f"{len(rows)} measurements (synthetic demo data)"
+    )
     db.close()
     return 0
 

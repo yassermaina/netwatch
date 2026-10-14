@@ -23,8 +23,13 @@ class Notifier:
             return False
         if mode == "hidden" and self.window_visible():
             return False
-        return bool(self.setting({"outage": "notify_outage", "recovery": "notify_recovery",
-                                  "error": "notify_errors"}.get(kind, "notify_errors")))
+        return bool(
+            self.setting(
+                {"outage": "notify_outage", "recovery": "notify_recovery", "error": "notify_errors"}.get(
+                    kind, "notify_errors"
+                )
+            )
+        )
 
     def notify(self, kind: str, title: str, body: str, force: bool = False) -> None:
         if not force and not self._allowed(kind):
@@ -36,8 +41,13 @@ class Notifier:
             n.set_priority(Gio.NotificationPriority.HIGH)
             n.add_button("Open History", "app.show-history")
         try:
-            n.set_icon(Gio.ThemedIcon.new({"outage": "network-error-symbolic", "recovery": "network-transmit-receive-symbolic"}
-                                          .get(kind, "dialog-warning-symbolic")))
+            n.set_icon(
+                Gio.ThemedIcon.new(
+                    {"outage": "network-error-symbolic", "recovery": "network-transmit-receive-symbolic"}.get(
+                        kind, "dialog-warning-symbolic"
+                    )
+                )
+            )
         except Exception:  # icon support is optional
             pass
         # one notification id per kind replaces older ones of the same kind

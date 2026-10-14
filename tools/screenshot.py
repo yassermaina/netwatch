@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Developer tool: render every page of the running app to PNG files (works under Xvfb).
 
-    GSK_RENDERER=cairo xvfb-run -a python3 tools/screenshot.py --db /tmp/demo.db --out /tmp/shots
+GSK_RENDERER=cairo xvfb-run -a python3 tools/screenshot.py --db /tmp/demo.db --out /tmp/shots
 """
 
 from __future__ import annotations
@@ -55,7 +55,8 @@ def main() -> int:
         if win is None:
             return True
         Adw.StyleManager.get_default().set_color_scheme(
-            Adw.ColorScheme.FORCE_DARK if args.theme == "dark" else Adw.ColorScheme.FORCE_LIGHT)
+            Adw.ColorScheme.FORCE_DARK if args.theme == "dark" else Adw.ColorScheme.FORCE_LIGHT
+        )
         win.set_default_size(args.width, args.height)
         win.present()
         step(0)

@@ -237,7 +237,9 @@ def test_large_history_is_fast(repo, stats):
         rows.append((sid, state.value, t, t + dur))
         t += dur
     with repo.tx() as conn:
-        conn.executemany("INSERT INTO connection_states(session_id, state, started_at, ended_at) VALUES (?,?,?,?)", rows)
+        conn.executemany(
+            "INSERT INTO connection_states(session_id, state, started_at, ended_at) VALUES (?,?,?,?)", rows
+        )
     started = time.perf_counter()
     h = stats.history("all", time.time())
     elapsed = time.perf_counter() - started

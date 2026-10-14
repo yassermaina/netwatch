@@ -16,13 +16,15 @@ def setup_logging(debug: bool) -> None:
     handlers: list[logging.Handler] = [logging.StreamHandler(sys.stderr)]
     try:
         state_dir().mkdir(parents=True, exist_ok=True)
-        handlers.append(logging.handlers.RotatingFileHandler(state_dir() / "netwatch.log", maxBytes=1_000_000,
-                                                             backupCount=3, encoding="utf-8"))
+        handlers.append(
+            logging.handlers.RotatingFileHandler(
+                state_dir() / "netwatch.log", maxBytes=1_000_000, backupCount=3, encoding="utf-8"
+            )
+        )
     except OSError:
         pass
     handlers[0].setLevel(level if debug else logging.WARNING)
-    logging.basicConfig(level=level, handlers=handlers,
-                        format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    logging.basicConfig(level=level, handlers=handlers, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
 
 def print_diagnostics(db_override: str | None) -> int:
@@ -46,8 +48,10 @@ def print_diagnostics(db_override: str | None) -> int:
         gi.require_version("Adw", "1")
         from gi.repository import Adw, Gtk
 
-        print(f"GTK {Gtk.get_major_version()}.{Gtk.get_minor_version()}, "
-              f"Libadwaita {Adw.get_major_version()}.{Adw.get_minor_version()}, PyGObject {gi.__version__}")
+        print(
+            f"GTK {Gtk.get_major_version()}.{Gtk.get_minor_version()}, "
+            f"Libadwaita {Adw.get_major_version()}.{Adw.get_minor_version()}, PyGObject {gi.__version__}"
+        )
     except (ImportError, ValueError) as exc:
         print(f"GTK4/Libadwaita: NOT AVAILABLE ({exc})")
     print(f"ping: {adapters['icmp'].availability()[1]}")
@@ -96,7 +100,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     from netwatch.ui.application import NetWatchApplication
 
-    app = NetWatchApplication(database_path(args.db), background_mode=args.background)
+    app = NetWatchApplication(database_path(args.db))
     return app.run([argv[0]] + (["--background"] if args.background else []))
 
 

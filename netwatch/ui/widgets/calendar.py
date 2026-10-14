@@ -71,8 +71,10 @@ class CalendarHeatmap(Gtk.DrawingArea):
         summary = ", ".join(f"{n} {CATEGORY_TEXT[k].lower()}" for k, n in counts.items())
         self.update_property(
             [Gtk.AccessibleProperty.DESCRIPTION],
-            [f"{sum(counts.values())} days: {summary}. Use arrow keys to move between days and Enter to show "
-             "that day's events."],
+            [
+                f"{sum(counts.values())} days: {summary}. Use arrow keys to move between days and Enter to show "
+                "that day's events."
+            ],
         )
         self.queue_draw()
 
@@ -121,17 +123,16 @@ class CalendarHeatmap(Gtk.DrawingArea):
             else:
                 cr.set_source_rgb(*c[cat])
                 cr.fill()
-            if (self.selected and d.day == self.selected) or i == self.hover or (
-                self.has_focus() and i == self.cursor
-            ):
+            if (self.selected and d.day == self.selected) or i == self.hover or (self.has_focus() and i == self.cursor):
                 palette.rounded_rect(cr, x - 1.5, y - 1.5, self.CELL + 3, self.CELL + 3, 5)
                 cr.set_source_rgba(*c["accent"] if self.selected == d.day or i == self.cursor else c["fg"], 0.95)
                 cr.set_line_width(2)
                 cr.stroke()
             if i % 7 == 0:
                 # month label under the first week that contains day 1..7 of a new month
-                month_day = next((self.days[j].day for j in range(i, min(i + 7, len(self.days)))
-                                  if self.days[j].day.day == 1), None)
+                month_day = next(
+                    (self.days[j].day for j in range(i, min(i + 7, len(self.days))) if self.days[j].day.day == 1), None
+                )
                 if month_day is None and last_month is None and d.in_range:
                     month_day = d.day
                 if month_day is not None and month_day.month != last_month and x - last_label_x > 34:
@@ -207,8 +208,9 @@ class CalendarHeatmap(Gtk.DrawingArea):
                 self.cursor = max((i for i, d in enumerate(self.days) if d.in_range), default=0)
             else:
                 self.cursor = max(0, min(len(self.days) - 1, self.cursor + moves[keyval]))
-            self.update_property([Gtk.AccessibleProperty.LABEL],
-                                 [self.describe(self.days[self.cursor]).replace("\n", ". ")])
+            self.update_property(
+                [Gtk.AccessibleProperty.LABEL], [self.describe(self.days[self.cursor]).replace("\n", ". ")]
+            )
             self.trigger_tooltip_query()
             self.queue_draw()
             return True

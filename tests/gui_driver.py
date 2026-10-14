@@ -76,9 +76,14 @@ def seed_large(path: Path, n: int = 21000) -> None:
             outages.append((sid, st.value, t, t, t + d, d, "recovered", 1, 1, "[]"))
         t += d
     with repo.tx() as conn:
-        conn.executemany("INSERT INTO connection_states(session_id, state, started_at, ended_at) VALUES (?,?,?,?)", rows)
-        conn.executemany("INSERT INTO outages(session_id, classification, started_at, detected_at, ended_at, duration, "
-                         "status, start_observed, end_observed, evidence) VALUES (?,?,?,?,?,?,?,?,?,?)", outages)
+        conn.executemany(
+            "INSERT INTO connection_states(session_id, state, started_at, ended_at) VALUES (?,?,?,?)", rows
+        )
+        conn.executemany(
+            "INSERT INTO outages(session_id, classification, started_at, detected_at, ended_at, duration, "
+            "status, start_observed, end_observed, evidence) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            outages,
+        )
     repo.end_session(sid, t)
     db.close()
 
@@ -115,6 +120,7 @@ def run_scenarios(db_path: Path, mode: str) -> dict:
         return app.window.pages["history"]
 
     if mode == "full":
+
         @step
         def periods():
             app.window.navigate("history")
@@ -124,11 +130,15 @@ def run_scenarios(db_path: Path, mode: str) -> dict:
             all_label = h.tile_outages.value.get_label()
             all_days = len(h.calendar.days)
             h.set_period("24h")
-            assert wait_until(lambda: h.data is not None and h.period == "24h" and
-                              h.data.summary.range_duration < DAY + 60)
+            assert wait_until(
+                lambda: h.data is not None and h.period == "24h" and h.data.summary.range_duration < DAY + 60
+            )
             results["periods"] = {
-                "all_outages": all_count, "all_tile": all_label, "all_days": all_days,
-                "day_outages": h.data.summary.outage_count, "day_tile": h.tile_outages.value.get_label(),
+                "all_outages": all_count,
+                "all_tile": all_label,
+                "all_days": all_days,
+                "day_outages": h.data.summary.outage_count,
+                "day_tile": h.tile_outages.value.get_label(),
                 "day_days": len(h.calendar.days),
                 "timeline_start_matches": abs(h.timeline.start - h.data.summary.range_start) < 1,
                 "coverage_text": h.coverage_label.get_label(),
@@ -143,7 +153,8 @@ def run_scenarios(db_path: Path, mode: str) -> dict:
             h._on_timeline_activate(down)
             row = h.listbox.get_selected_row()
             results["timeline"] = {
-                "selected_key": row.seg.key if row else None, "expected_key": down.key,
+                "selected_key": row.seg.key if row else None,
+                "expected_key": down.key,
                 "outage_linked": down.outage_id is not None,
             }
 
@@ -155,10 +166,15 @@ def run_scenarios(db_path: Path, mode: str) -> dict:
             h._on_day_selected(day)
             from netwatch.timefmt import day_start_of
             from datetime import timedelta
+
             ds, de = day_start_of(day.day), day_start_of(day.day + timedelta(days=1))
             ok = all(s.end > ds and s.start < de for s in h.filtered)
-            results["calendar"] = {"filtered": len(h.filtered), "all_overlap_day": ok,
-                                   "day_outages": day.outage_count, "chip_visible": h.day_chip.get_visible()}
+            results["calendar"] = {
+                "filtered": len(h.filtered),
+                "all_overlap_day": ok,
+                "day_outages": day.outage_count,
+                "chip_visible": h.day_chip.get_visible(),
+            }
             h._on_day_selected(None, from_calendar=False)
             results["calendar"]["cleared"] = len(h.filtered) == len(h.events)
 
@@ -170,9 +186,11 @@ def run_scenarios(db_path: Path, mode: str) -> dict:
             h.state_filter.set_selected(0)
             h.search.set_text("not running")
             h._apply_filters()
-            results["filters"] = {"outages_only": only_down and len(h.filtered) >= 0,
-                                  "search_hits": len(h.filtered),
-                                  "search_all_match": all(s.state == ConnState.NOT_RUNNING for s in h.filtered)}
+            results["filters"] = {
+                "outages_only": only_down and len(h.filtered) >= 0,
+                "search_hits": len(h.filtered),
+                "search_all_match": all(s.state == ConnState.NOT_RUNNING for s in h.filtered),
+            }
             h.search.set_text("")
             h._apply_filters()
 
@@ -193,8 +211,10 @@ def run_scenarios(db_path: Path, mode: str) -> dict:
             assert wait_until(lambda: eng.snapshot.state == ConnState.ONLINE)
             outages = app.repo.db.query("SELECT * FROM outages WHERE session_id = ?", (eng.session_id,))
             results["background"] = {
-                "hidden": hidden, "ticks_while_hidden": eng.tick_count - before,
-                "lifecycle": eng.lifecycle.value, "muted": bool(app.settings.get("muted")),
+                "hidden": hidden,
+                "ticks_while_hidden": eng.tick_count - before,
+                "lifecycle": eng.lifecycle.value,
+                "muted": bool(app.settings.get("muted")),
                 "outages_recorded_while_muted": len(outages),
                 "outage_recovered": bool(outages) and outages[-1]["status"] == "recovered",
                 "alert_plays": list(app.alerts.plays),
@@ -218,30 +238,84 @@ def run_scenarios(db_path: Path, mode: str) -> dict:
                 conn = Gio.DBusConnection.new_for_address_sync(
                     Gio.dbus_address_get_for_bus_sync(Gio.BusType.SESSION, None),
                     Gio.DBusConnectionFlags.AUTHENTICATION_CLIENT | Gio.DBusConnectionFlags.MESSAGE_BUS_CONNECTION,
-                    None, None)
+                    None,
+                    None,
+                )
+
                 def call(path, iface, method, params):
                     # async + main loop iteration: the tray answers from this same thread
                     box = {}
-                    conn.call(app.tray.service, path, iface, method, params, None, Gio.DBusCallFlags.NONE, 3000,
-                              None, lambda c, res: box.setdefault("r", c.call_finish(res)))
+                    conn.call(
+                        app.tray.service,
+                        path,
+                        iface,
+                        method,
+                        params,
+                        None,
+                        Gio.DBusCallFlags.NONE,
+                        3000,
+                        None,
+                        lambda c, res: box.setdefault("r", c.call_finish(res)),
+                    )
                     assert wait_until(lambda: "r" in box, timeout=4)
                     return box["r"].unpack()
 
                 layout = call("/MenuBar", "com.canonical.dbusmenu", "GetLayout", GLib.Variant("(iias)", (0, -1, [])))
                 labels = [child[1].get("label", "") for child in layout[1][2]]
                 muted_before = bool(app.settings.get("muted"))
-                call("/MenuBar", "com.canonical.dbusmenu", "Event",
-                     GLib.Variant("(isvu)", (5, "clicked", GLib.Variant("s", ""), 0)))
+                call(
+                    "/MenuBar",
+                    "com.canonical.dbusmenu",
+                    "Event",
+                    GLib.Variant("(isvu)", (5, "clicked", GLib.Variant("s", ""), 0)),
+                )
                 wait_until(lambda: bool(app.settings.get("muted")) != muted_before, timeout=3)
-                icon = call("/StatusNotifierItem", "org.freedesktop.DBus.Properties", "Get",
-                            GLib.Variant("(ss)", ("org.kde.StatusNotifierItem", "IconName")))[0]
-                results["tray"].update({"labels": labels, "mute_toggled": bool(app.settings.get("muted")) != muted_before,
-                                        "icon": icon})
+                icon = call(
+                    "/StatusNotifierItem",
+                    "org.freedesktop.DBus.Properties",
+                    "Get",
+                    GLib.Variant("(ss)", ("org.kde.StatusNotifierItem", "IconName")),
+                )[0]
+                results["tray"].update(
+                    {"labels": labels, "mute_toggled": bool(app.settings.get("muted")) != muted_before, "icon": icon}
+                )
                 app.set_muted(False)
+
+        @step
+        def event_detail():
+            from netwatch.ui.event_detail import load_detail, show_event_detail
+
+            h = history()
+            down = next(seg for seg in h.data.segments if seg.state == ConnState.NO_INTERNET)
+            show_event_detail(app, h, down)  # builds the dialog; data loads asynchronously
+            wait_until(lambda: False, timeout=1.0)
+            data = load_detail(app, down)
+            results["detail"] = {"outage_id": data["outage"].id if data["outage"] else None,
+                                 "expected": down.outage_id}
+
+        @step
+        def settings_validation():
+            page = app.window.pages["settings"]
+            app.window.navigate("settings")
+            row_interval = page.fields["interval_seconds"][0]
+            row_timeout = page.fields["timeout_seconds"][0]
+            row_timeout.set_value(5)
+            row_interval.set_value(3)  # timeout >= interval -> invalid
+            invalid_blocked = not page.save_btn.get_sensitive() and "shorter" in page.status.get_label()
+            row_timeout.set_value(2)
+            valid_enabled = page.save_btn.get_sensitive()
+            saved = page.save()
+            results["settings"] = {"invalid_blocked": invalid_blocked, "valid_enabled": valid_enabled,
+                                   "saved": saved, "interval": app.settings.get("interval_seconds"),
+                                   "unsaved_after": page.has_unsaved()}
+            row_interval.set_value(1)
+            row_timeout.set_value(1)
+            page.save()
 
         @step
         def export_reports():
             from netwatch import reports
+
             out = {}
             for fmt in ("txt", "csv", "html"):
                 data = reports.build_report(app.repo, app.stats, app.settings, "all")
@@ -261,6 +335,7 @@ def run_scenarios(db_path: Path, mode: str) -> dict:
                     errors.append(f"{key}: {exc}")
             results["pages"] = {"errors": errors, "back": app.window.go_back()}
     elif mode == "large":
+
         @step
         def large():
             gaps = []
@@ -282,8 +357,9 @@ def run_scenarios(db_path: Path, mode: str) -> dict:
             gaps.clear()
             for key in ("30d", "7d", "all"):
                 h.set_period(key)
-                assert wait_until(lambda: h.period == key and h.data is not None and not h.spinner.get_spinning(),
-                                  timeout=30)
+                assert wait_until(
+                    lambda key=key: h.period == key and h.data is not None and not h.spinner.get_spinning(), timeout=30
+                )
             stall_periods = max(gaps)
             gaps.clear()
             last[0] = time.monotonic()
@@ -293,21 +369,29 @@ def run_scenarios(db_path: Path, mode: str) -> dict:
             selected = h.listbox.get_selected_row()
             newer_visible = h.newer_button.get_visible()
             h._render_newer()
-            results["large"] = {"events": len(h.events), "load_seconds": round(load, 2),
-                                "newer_visible": newer_visible, "rows_built": len(h.rows),
-                                "max_stall_seconds": round(max(stall_load, stall_periods, max(gaps)), 3),
-                                "stalls": [round(stall_load, 3), round(stall_periods, 3), round(max(gaps), 3)],
-                                "rendered": h.rendered,
-                                "selected_oldest": bool(selected and selected.seg.key == h.events[-1].key)}
+            results["large"] = {
+                "events": len(h.events),
+                "load_seconds": round(load, 2),
+                "newer_visible": newer_visible,
+                "rows_built": len(h.rows),
+                "max_stall_seconds": round(max(stall_load, stall_periods, max(gaps)), 3),
+                "stalls": [round(stall_load, 3), round(stall_periods, 3), round(max(gaps), 3)],
+                "rendered": h.rendered,
+                "selected_oldest": bool(selected and selected.seg.key == h.events[-1].key),
+            }
     else:  # empty
+
         @step
         def empty():
             app.window.navigate("history")
             h = history()
             assert wait_until(lambda: h.data is not None)
-            results["empty"] = {"status_visible": h.empty.get_visible(), "log_visible": h.log_section.get_visible(),
-                                "uptime_tile": h.tile_uptime.value.get_label(),
-                                "lifecycle": app.engine.lifecycle.value}
+            results["empty"] = {
+                "status_visible": h.empty.get_visible(),
+                "log_visible": h.log_section.get_visible(),
+                "uptime_tile": h.tile_uptime.value.get_label(),
+                "lifecycle": app.engine.lifecycle.value,
+            }
 
     def run_steps() -> bool:
         try:
@@ -315,6 +399,7 @@ def run_scenarios(db_path: Path, mode: str) -> dict:
                 fn()
         except Exception:
             import traceback
+
             results["error"] = traceback.format_exc()
         results["runner_active_before_quit"] = app.runner.active_count()
         app.quit()
@@ -330,6 +415,7 @@ def run_scenarios(db_path: Path, mode: str) -> dict:
     results["lifecycle_after_quit"] = app.engine.lifecycle.value
     results["runner_active_after_quit"] = app.runner.active_count()
     import threading
+
     results["monitor_threads"] = [t.name for t in threading.enumerate() if t.name == "netwatch-monitor"]
     return results
 
@@ -346,12 +432,22 @@ class FakeWatcher:
         self.conn = Gio.DBusConnection.new_for_address_sync(
             Gio.dbus_address_get_for_bus_sync(Gio.BusType.SESSION, None),
             Gio.DBusConnectionFlags.AUTHENTICATION_CLIENT | Gio.DBusConnectionFlags.MESSAGE_BUS_CONNECTION,
-            None, None)
+            None,
+            None,
+        )
         info = Gio.DBusNodeInfo.new_for_xml(self.XML).interfaces[0]
         self.conn.register_object("/StatusNotifierWatcher", info, self._call, None, None)
-        self.conn.call_sync("org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus", "RequestName",
-                            GLib.Variant("(su)", ("org.kde.StatusNotifierWatcher", 4)), None,
-                            Gio.DBusCallFlags.NONE, 3000, None)
+        self.conn.call_sync(
+            "org.freedesktop.DBus",
+            "/org/freedesktop/DBus",
+            "org.freedesktop.DBus",
+            "RequestName",
+            GLib.Variant("(su)", ("org.kde.StatusNotifierWatcher", 4)),
+            None,
+            Gio.DBusCallFlags.NONE,
+            3000,
+            None,
+        )
 
     def _call(self, conn, sender, path, iface, method, params, invocation):
         self.items.append(params.unpack()[0])

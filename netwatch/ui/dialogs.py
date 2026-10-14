@@ -76,12 +76,16 @@ def present_content(parent: Gtk.Widget, title: str, content: Gtk.Widget, width: 
         dialog.set_child(toolbar)
         dialog.present(parent)
         return dialog.close
-    win = Adw.Window(transient_for=parent.get_root(), modal=True, title=title, default_width=width,
-                     default_height=height)
+    win = Adw.Window(
+        transient_for=parent.get_root(), modal=True, title=title, default_width=width, default_height=height
+    )
     win.set_content(toolbar)
     esc = Gtk.ShortcutController()
-    esc.add_shortcut(Gtk.Shortcut.new(Gtk.ShortcutTrigger.parse_string("Escape"),
-                                      Gtk.CallbackAction.new(lambda *_: win.close() or True)))
+    esc.add_shortcut(
+        Gtk.Shortcut.new(
+            Gtk.ShortcutTrigger.parse_string("Escape"), Gtk.CallbackAction.new(lambda *_: win.close() or True)
+        )
+    )
     win.add_controller(esc)
     win.present()
     return win.close

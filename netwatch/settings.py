@@ -103,7 +103,12 @@ def validate(values: dict) -> list[ValidationError]:
         if values.get(key) not in allowed:
             errors.append(ValidationError(key, f"Invalid value for {key}."))
     interval, timeout = values.get("interval_seconds"), values.get("timeout_seconds")
-    if isinstance(interval, (int, float)) and isinstance(timeout, (int, float)) and timeout >= interval and interval > 1:
+    if (
+        isinstance(interval, (int, float))
+        and isinstance(timeout, (int, float))
+        and timeout >= interval
+        and interval > 1
+    ):
         errors.append(
             ValidationError(
                 "timeout_seconds",

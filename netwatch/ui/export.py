@@ -43,7 +43,9 @@ def start_export(
     if fmt is None:
         what = "this event" if focus else "the selected period"
         dialogs.choose(
-            window, "Export Report", f"Choose a format for a report covering {what}.",
+            window,
+            "Export Report",
+            f"Choose a format for a report covering {what}.",
             [("cancel", "Cancel", ""), ("txt", "Text", ""), ("csv", "CSV", ""), ("html", "HTML", "suggested")],
             lambda rid: rid != "cancel" and start_export(app, window, period, custom, focus, rid, on_saved),
             default="html",
@@ -55,8 +57,9 @@ def start_export(
     except OSError:
         folder = Path.home()
     name = reports.default_filename(fmt, event=focus is not None)
-    dialog = Gtk.FileDialog(title="Save Report", modal=True, initial_name=name,
-                            initial_folder=Gio.File.new_for_path(str(folder)))
+    dialog = Gtk.FileDialog(
+        title="Save Report", modal=True, initial_name=name, initial_folder=Gio.File.new_for_path(str(folder))
+    )
     flt = Gtk.FileFilter()
     flt.set_name(reports.FORMATS[fmt])
     flt.add_suffix(fmt)
@@ -68,8 +71,9 @@ def start_export(
         try:
             gfile = dlg.save_finish(result)
         except GLib.Error as err:
-            if not err.matches(Gtk.dialog_error_quark(), Gtk.DialogError.DISMISSED) and \
-                    not err.matches(Gtk.dialog_error_quark(), Gtk.DialogError.CANCELLED):
+            if not err.matches(Gtk.dialog_error_quark(), Gtk.DialogError.DISMISSED) and not err.matches(
+                Gtk.dialog_error_quark(), Gtk.DialogError.CANCELLED
+            ):
                 window.toast(f"Could not open the file chooser: {err.message}")
             return
         path = gfile.get_path()
@@ -79,8 +83,13 @@ def start_export(
         if not path.lower().endswith(f".{fmt}"):
             path += f".{fmt}"
             if os.path.exists(path):
-                dialogs.confirm(window, "Replace existing file?", f"{os.path.basename(path)} already exists.",
-                                "Replace", lambda: write(path))
+                dialogs.confirm(
+                    window,
+                    "Replace existing file?",
+                    f"{os.path.basename(path)} already exists.",
+                    "Replace",
+                    lambda: write(path),
+                )
                 return
         write(path)
 

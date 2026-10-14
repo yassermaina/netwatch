@@ -97,20 +97,31 @@ def show_event_detail(app: "NetWatchApplication", parent: Gtk.Widget, seg: Segme
         perf, targets = data["perf"], data["targets"]
         overall = perf["overall"]
         if overall["checks"] == 0:
-            holder.add(_row("Measurements", "No raw measurements are stored for this period (they may have been "
-                                            "pruned by the retention policy)."))
+            holder.add(
+                _row(
+                    "Measurements",
+                    "No raw measurements are stored for this period (they may have been "
+                    "pruned by the retention policy).",
+                )
+            )
         else:
             holder.add(_row("Checks", f"{overall['checks']} ({overall['checks'] - overall['ok']} failed)"))
             if overall["avg"] is not None:
-                holder.add(_row("Latency", f"avg {overall['avg']:.1f} ms · median {overall['median']:.1f} ms · "
-                                           f"min {overall['min']:.1f} · max {overall['max']:.1f} ms"))
+                holder.add(
+                    _row(
+                        "Latency",
+                        f"avg {overall['avg']:.1f} ms · median {overall['median']:.1f} ms · "
+                        f"min {overall['min']:.1f} · max {overall['max']:.1f} ms",
+                    )
+                )
             chart = LatencyChart(height=180)
             series = []
             for i, (tid, pts) in enumerate(sorted(perf["series"].items())):
                 t = targets.get(tid)
                 series.append({"name": t.name if t else str(tid), "color": SERIES[i % len(SERIES)], "points": pts})
-            chart.set_data(perf["start"], perf["end"], perf["bucket"], series,
-                           interval=float(app.settings.get("interval_seconds")))
+            chart.set_data(
+                perf["start"], perf["end"], perf["bucket"], series, interval=float(app.settings.get("interval_seconds"))
+            )
             frame = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6, margin_top=10)
             frame.add_css_class("nw-chart-frame")
             frame.append(chart)
@@ -139,8 +150,13 @@ def show_event_detail(app: "NetWatchApplication", parent: Gtk.Widget, seg: Segme
         if o is not None and seg.state in DOWN_STATES:
             og = Adw.PreferencesGroup(title=f"Outage #{o.id}")
             og.add(_row("Status", outage_label(o)))
-            og.add(_row("Start", format_timestamp(o.start, seconds=True)
-                        + ("" if o.start_observed else " (monitoring started during the outage — real start unknown)")))
+            og.add(
+                _row(
+                    "Start",
+                    format_timestamp(o.start, seconds=True)
+                    + ("" if o.start_observed else " (monitoring started during the outage — real start unknown)"),
+                )
+            )
             og.add(_row("Detected", format_timestamp(o.detected_at, seconds=True)))
             if not o.ongoing:
                 og.add(_row("End", format_timestamp(o.end, seconds=True)))
@@ -156,8 +172,11 @@ def show_event_detail(app: "NetWatchApplication", parent: Gtk.Widget, seg: Segme
                 summary = ", ".join(
                     f"{r['target']} {'ok ' + str(r['latency_ms']) + ' ms' if r['ok'] else r['error']}" for r in results
                 ) or item.get("note", "")
-                title = {"detected": "Failure detected", "recovered": "Recovery evidence",
-                         "reclassified": "State changed"}.get(item.get("event"), item.get("event", "").replace("_", " ").capitalize())
+                title = {
+                    "detected": "Failure detected",
+                    "recovered": "Recovery evidence",
+                    "reclassified": "State changed",
+                }.get(item.get("event"), item.get("event", "").replace("_", " ").capitalize())
                 ev.add(_row(f"{title} · {format_timestamp(item.get('ts'), seconds=True)}", summary))
             page.add(ev)
         if data["events"]:
@@ -166,5 +185,6 @@ def show_event_detail(app: "NetWatchApplication", parent: Gtk.Widget, seg: Segme
                 ae.add(_row(format_timestamp(e["ts"], seconds=True), e["message"] or e["kind"]))
             page.add(ae)
 
-    run_async(lambda: load_detail(app, seg), fill,
-              lambda exc: (holder.remove(loading), holder.add(_row("Error", str(exc)))))
+    run_async(
+        lambda: load_detail(app, seg), fill, lambda exc: (holder.remove(loading), holder.add(_row("Error", str(exc))))
+    )

@@ -11,7 +11,15 @@ from netwatch.models import ConnState, EngineSnapshot, Lifecycle
 from netwatch.timefmt import format_clock, format_duration, format_duration_long, local_day_start
 from netwatch.ui.background import Generation, run_async
 from netwatch.ui.palette import css_class
-from netwatch.ui.widgets.common import MetricTile, StateDot, flow_append, flow_box, label, responsive_flow, section_header
+from netwatch.ui.widgets.common import (
+    MetricTile,
+    StateDot,
+    flow_append,
+    flow_box,
+    label,
+    responsive_flow,
+    section_header,
+)
 from netwatch.ui.widgets.timeline import TimelineBar
 
 if TYPE_CHECKING:
@@ -81,13 +89,21 @@ class OverviewPage(Gtk.Box):
         content.append(self.card)
 
         # controls
-        controls = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE, column_spacing=8, row_spacing=8,
-                               max_children_per_line=12, homogeneous=False, margin_top=14)
+        controls = Gtk.FlowBox(
+            selection_mode=Gtk.SelectionMode.NONE,
+            column_spacing=8,
+            row_spacing=8,
+            max_children_per_line=12,
+            homogeneous=False,
+            margin_top=14,
+        )
         self.btn_start = self._button("Start", "media-playback-start-symbolic", "app.start", "suggested-action")
-        self.btn_pause = self._button("Pause", "media-playback-pause-symbolic", "app.toggle-pause",
-                                      tooltip="Pause monitoring (Space)")
-        self.btn_stop = self._button("Stop", "media-playback-stop-symbolic", "app.stop",
-                                     tooltip="Stop and close the monitoring session")
+        self.btn_pause = self._button(
+            "Pause", "media-playback-pause-symbolic", "app.toggle-pause", tooltip="Pause monitoring (Space)"
+        )
+        self.btn_stop = self._button(
+            "Stop", "media-playback-stop-symbolic", "app.stop", tooltip="Stop and close the monitoring session"
+        )
         self.btn_mute = Gtk.ToggleButton(tooltip_text="Mute sound alerts (M)")
         self.btn_mute.set_child(Adw.ButtonContent(icon_name="audio-volume-high-symbolic", label="Mute"))
         self.btn_mute.set_action_name("app.mute")
@@ -146,8 +162,9 @@ class OverviewPage(Gtk.Box):
         self.target_rows: dict[int, tuple[Adw.ActionRow, StateDot, Gtk.Label]] = {}
         self.reload_targets()
 
-    def _button(self, text: str, icon: str, action: str, css: Optional[str] = None,
-                tooltip: Optional[str] = None) -> Gtk.Button:
+    def _button(
+        self, text: str, icon: str, action: str, css: Optional[str] = None, tooltip: Optional[str] = None
+    ) -> Gtk.Button:
         b = Gtk.Button(action_name=action, tooltip_text=tooltip)
         b.set_child(Adw.ButtonContent(icon_name=icon, label=text))
         if css:
@@ -165,8 +182,9 @@ class OverviewPage(Gtk.Box):
         self.target_rows.clear()
         targets = self.app.repo.list_targets()
         for t in targets:
-            row = Adw.ActionRow(title=t.name, subtitle=f"{t.address} · {t.check_type.upper()}"
-                                + ("" if t.enabled else " · disabled"))
+            row = Adw.ActionRow(
+                title=t.name, subtitle=f"{t.address} · {t.check_type.upper()}" + ("" if t.enabled else " · disabled")
+            )
             dot = StateDot(ConnState.UNKNOWN)
             row.add_prefix(dot)
             value = label("—", ("nw-num", "dim-label"), xalign=1.0)
@@ -174,8 +192,9 @@ class OverviewPage(Gtk.Box):
             self.targets_list.append(row)
             self.target_rows[t.id] = (row, dot, value)
         enabled = sum(1 for t in targets if t.enabled)
-        self.targets_caption.set_label(f"{enabled} of {len(targets)} targets enabled. Connectivity is ONLINE while "
-                                       "at least one target responds.")
+        self.targets_caption.set_label(
+            f"{enabled} of {len(targets)} targets enabled. Connectivity is ONLINE while at least one target responds."
+        )
         self._updating_spin = True
         self.interval.set_value(self.app.settings.get("interval_seconds"))
         self._updating_spin = False
@@ -198,9 +217,12 @@ class OverviewPage(Gtk.Box):
             self.refresh_stats()
 
     def on_mute_changed(self, muted: bool) -> None:
-        self.btn_mute.set_child(Adw.ButtonContent(
-            icon_name="audio-volume-muted-symbolic" if muted else "audio-volume-high-symbolic",
-            label="Unmute" if muted else "Mute"))
+        self.btn_mute.set_child(
+            Adw.ButtonContent(
+                icon_name="audio-volume-muted-symbolic" if muted else "audio-volume-high-symbolic",
+                label="Unmute" if muted else "Mute",
+            )
+        )
 
     def update_status(self) -> None:
         snap, now = self.snapshot, time.time()
@@ -212,8 +234,11 @@ class OverviewPage(Gtk.Box):
             state = ConnState.PAUSED
         self.card.add_css_class(css_class(state))
         self.status_icon.set_from_icon_name(STATE_ICONS[state])
-        titles = {ConnState.UNKNOWN: "Checking…", ConnState.PAUSED: "Monitoring paused",
-                  ConnState.NOT_RUNNING: "Not monitoring"}
+        titles = {
+            ConnState.UNKNOWN: "Checking…",
+            ConnState.PAUSED: "Monitoring paused",
+            ConnState.NOT_RUNNING: "Not monitoring",
+        }
         title = titles.get(state, state.label)
         if lc == Lifecycle.ERROR:
             title = "Monitoring error"
@@ -244,7 +269,9 @@ class OverviewPage(Gtk.Box):
         self.status_sub.set_label(" · ".join(p for p in parts if p))
         local = snap.local
         if local is not None and lc == Lifecycle.RUNNING:
-            desc = local.describe() or ("No active connection" if local.connected is False else "Network status unknown")
+            desc = local.describe() or (
+                "No active connection" if local.connected is False else "Network status unknown"
+            )
             src = {"networkmanager": "NetworkManager", "sysfs": "kernel interfaces"}.get(local.source, local.source)
             self.status_iface.set_label(f"{desc} · reported by {src}")
             self.status_iface.set_visible(True)
@@ -255,11 +282,17 @@ class OverviewPage(Gtk.Box):
         self.btn_start.set_visible(not running)
         self.btn_pause.set_visible(running)
         self.btn_stop.set_visible(running)
-        self.btn_pause.set_child(Adw.ButtonContent(
-            icon_name="media-playback-start-symbolic" if lc == Lifecycle.PAUSED else "media-playback-pause-symbolic",
-            label="Resume" if lc == Lifecycle.PAUSED else "Pause"))
-        self.btn_pause.set_tooltip_text("Resume monitoring (Space)" if lc == Lifecycle.PAUSED else
-                                        "Pause monitoring (Space)")
+        self.btn_pause.set_child(
+            Adw.ButtonContent(
+                icon_name="media-playback-start-symbolic"
+                if lc == Lifecycle.PAUSED
+                else "media-playback-pause-symbolic",
+                label="Resume" if lc == Lifecycle.PAUSED else "Pause",
+            )
+        )
+        self.btn_pause.set_tooltip_text(
+            "Resume monitoring (Space)" if lc == Lifecycle.PAUSED else "Pause monitoring (Space)"
+        )
         # cheap, snapshot-driven tiles
         if snap.last_latency_ms is not None and snap.last_success_at and now - snap.last_success_at < 120:
             self.m_latency.set(f"{snap.last_latency_ms:.1f} ms", "best responding target")
@@ -268,11 +301,15 @@ class OverviewPage(Gtk.Box):
         else:
             self.m_latency.set("—", "no replies yet", muted=True)
         last_ok = snap.last_success_at or self._last_success_db
-        self.m_last.set(ago(last_ok, now) if last_ok else "never",
-                        format_clock(last_ok, seconds=True) if last_ok else "", muted=last_ok is None)
+        self.m_last.set(
+            ago(last_ok, now) if last_ok else "never",
+            format_clock(last_ok, seconds=True) if last_ok else "",
+            muted=last_ok is None,
+        )
         if snap.session_started and running:
-            self.m_session.set(format_duration_long(now - snap.session_started),
-                               f"since {format_clock(snap.session_started)}")
+            self.m_session.set(
+                format_duration_long(now - snap.session_started), f"since {format_clock(snap.session_started)}"
+            )
         else:
             self.m_session.set("—", "not monitoring", muted=True)
 
@@ -301,12 +338,17 @@ class OverviewPage(Gtk.Box):
             return
         today, hour_segments, quality, last_ok = result
         self._last_success_db = last_ok
-        self.m_outages.set(str(today.outage_count),
-                           f"monitored {format_duration_long(today.monitored)} today" if today.monitored else
-                           "no monitored time today", muted=today.monitored == 0)
+        self.m_outages.set(
+            str(today.outage_count),
+            f"monitored {format_duration_long(today.monitored)} today"
+            if today.monitored
+            else "no monitored time today",
+            muted=today.monitored == 0,
+        )
         if today.monitored:
-            self.m_down.set(format_duration(today.downtime, precise=True),
-                            f"{today.downtime_pct:.2f}% of monitored time")
+            self.m_down.set(
+                format_duration(today.downtime, precise=True), f"{today.downtime_pct:.2f}% of monitored time"
+            )
         else:
             self.m_down.set("—", "no monitored time today", muted=True)
         if quality["loss_pct"] is None:
@@ -317,8 +359,9 @@ class OverviewPage(Gtk.Box):
         online = sum(s.duration for s in hour_segments if s.state == ConnState.ONLINE)
         mon = sum(s.duration for s in hour_segments if s.state.is_monitored)
         self.live_caption.set_label(
-            f"Online {online / mon * 100:.1f}% of {format_duration_long(mon)} monitored in the last hour" if mon else
-            "Nothing monitored in the last hour"
+            f"Online {online / mon * 100:.1f}% of {format_duration_long(mon)} monitored in the last hour"
+            if mon
+            else "Nothing monitored in the last hour"
         )
         self.update_status()
 

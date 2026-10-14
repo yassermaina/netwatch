@@ -271,7 +271,9 @@ class MonitorEngine:
         if self.session_id is None:
             return
         with self.repo.tx():
-            self._close_current(now, outage_status="monitoring_stopped", note="Monitoring stopped before recovery was observed")
+            self._close_current(
+                now, outage_status="monitoring_stopped", note="Monitoring stopped before recovery was observed"
+            )
             self.repo.end_session(self.session_id, now, "stopped", reason)
             self.repo.log_event("session_stopped", f"Monitoring stopped ({reason})", self.session_id, ts=now)
         self.session_id = None
@@ -286,7 +288,9 @@ class MonitorEngine:
 
     def _pause(self, now: float) -> None:
         with self.repo.tx():
-            self._close_current(now, outage_status="monitoring_paused", note="Monitoring paused before recovery was observed")
+            self._close_current(
+                now, outage_status="monitoring_paused", note="Monitoring paused before recovery was observed"
+            )
             self._open_state(ConnState.PAUSED, now, now, reason="Monitoring paused by the user")
             self.repo.heartbeat(self.session_id, now)
             self.repo.log_event("paused", "Monitoring paused", self.session_id, ts=now)
@@ -306,8 +310,9 @@ class MonitorEngine:
         self._publish_state(ConnState.UNKNOWN, now)
         self._set_lifecycle(Lifecycle.RUNNING)
 
-    def _open_state(self, state: ConnState, started: float, detected: float, targets: Optional[str] = None,
-                    reason: str = "") -> None:
+    def _open_state(
+        self, state: ConnState, started: float, detected: float, targets: Optional[str] = None, reason: str = ""
+    ) -> None:
         self._state_id = self.repo.open_state(
             self.session_id, state, started, detected, targets, self._interface_json, reason
         )
@@ -320,7 +325,10 @@ class MonitorEngine:
             self._state_id = None
         if self._outage_id is not None:
             self.repo.close_outage(
-                self._outage_id, at, outage_status, end_observed=False,
+                self._outage_id,
+                at,
+                outage_status,
+                end_observed=False,
                 evidence=[{"ts": at, "event": outage_status, "note": note}],
             )
             self._outage_id = None
@@ -341,14 +349,22 @@ class MonitorEngine:
         def one(t: Target) -> CheckResult:
             adapter = self.adapters.get(t.check_type)
             if adapter is None:
-                return CheckResult(t.id, t.address, t.check_type, False, time.time(),
-                                   error=ErrorCategory.MISSING_DEPENDENCY, detail=f"no adapter for {t.check_type}")
+                return CheckResult(
+                    t.id,
+                    t.address,
+                    t.check_type,
+                    False,
+                    time.time(),
+                    error=ErrorCategory.MISSING_DEPENDENCY,
+                    detail=f"no adapter for {t.check_type}",
+                )
             try:
                 return adapter.check(t, timeout)
             except Exception as exc:  # adapter bug: record, do not crash
                 log.exception("adapter %s failed", t.check_type)
-                return CheckResult(t.id, t.address, t.check_type, False, time.time(),
-                                   error=ErrorCategory.OTHER, detail=str(exc)[:200])
+                return CheckResult(
+                    t.id, t.address, t.check_type, False, time.time(), error=ErrorCategory.OTHER, detail=str(exc)[:200]
+                )
 
         if self._pool is None or len(targets) == 1:
             return [one(t) for t in targets]
@@ -374,8 +390,11 @@ class MonitorEngine:
             else f"No checks ran for {mono_gap:.0f}s"
         )
         with self.repo.tx():
-            self._close_current(max(gap_start, self._state_started), outage_status="monitoring_interrupted",
-                                note="Monitoring was interrupted (suspend, clock change or stall)")
+            self._close_current(
+                max(gap_start, self._state_started),
+                outage_status="monitoring_interrupted",
+                note="Monitoring was interrupted (suspend, clock change or stall)",
+            )
             self._open_state(ConnState.UNKNOWN, now, now, reason=message)
             self.repo.log_event(kind, message, self.session_id, data={"drift": drift, "mono_gap": mono_gap}, ts=now)
         self.classifier.reset()
@@ -466,13 +485,24 @@ class MonitorEngine:
         else:
             targets = ", ".join(r.address for r in results if not r.success)
         self._open_state(t.new, effective, t.detected_at, targets or None, t.reason)
-        evidence = [{"ts": t.detected_at, "event": "", "state": t.new.value, "reason": t.reason,
-                     "results": _result_evidence(results)}]
+        evidence = [
+            {
+                "ts": t.detected_at,
+                "event": "",
+                "state": t.new.value,
+                "reason": t.reason,
+                "results": _result_evidence(results),
+            }
+        ]
         if t.new in DOWN_STATES and t.previous not in DOWN_STATES:
             evidence[0]["event"] = "detected"
             self._outage_id = self.repo.create_outage(
-                self.session_id, t.new, effective, t.detected_at,
-                start_observed=t.previous == ConnState.ONLINE, evidence=evidence,
+                self.session_id,
+                t.new,
+                effective,
+                t.detected_at,
+                start_observed=t.previous == ConnState.ONLINE,
+                evidence=evidence,
             )
             self.repo.record_outage_failures(self._outage_id, results)
         elif t.new in DOWN_STATES and self._outage_id is not None:

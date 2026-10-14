@@ -50,7 +50,12 @@ class _ChartBase(Gtk.DrawingArea):
         self.add_controller(keys)
 
     def _plot_rect(self, width: int, height: int) -> tuple[float, float, float, float]:
-        return self.PAD_L, self.PAD_T, max(10, width - self.PAD_L - self.PAD_R), max(10, height - self.PAD_T - self.PAD_B)
+        return (
+            self.PAD_L,
+            self.PAD_T,
+            max(10, width - self.PAD_L - self.PAD_R),
+            max(10, height - self.PAD_T - self.PAD_B),
+        )
 
     def _x(self, t: float, px: float, pw: float) -> float:
         return px + (t - self.start) / max(1e-9, self.end - self.start) * pw
@@ -140,9 +145,13 @@ class LatencyChart(_ChartBase):
         for s in series:
             s["_ts"] = [p["t"] for p in s["points"]]
         total = sum(len(s["points"]) for s in series)
-        self.update_property([Gtk.AccessibleProperty.DESCRIPTION],
-                             [f"Latency chart with {len(series)} targets and {total} data points. "
-                              "Use left and right arrow keys to inspect values."])
+        self.update_property(
+            [Gtk.AccessibleProperty.DESCRIPTION],
+            [
+                f"Latency chart with {len(series)} targets and {total} data points. "
+                "Use left and right arrow keys to inspect values."
+            ],
+        )
         self.queue_draw()
 
     def _draw(self, area, cr, width: int, height: int) -> None:
@@ -250,8 +259,10 @@ class LossChart(_ChartBase):
         self.buckets = sorted(buckets, key=lambda b: b["t"])
         self._ts = [b["t"] for b in self.buckets]
         lossy = sum(1 for b in self.buckets if b["ok"] < b["n"])
-        self.update_property([Gtk.AccessibleProperty.DESCRIPTION],
-                             [f"Packet loss chart, {len(self.buckets)} intervals with data, {lossy} with loss."])
+        self.update_property(
+            [Gtk.AccessibleProperty.DESCRIPTION],
+            [f"Packet loss chart, {len(self.buckets)} intervals with data, {lossy} with loss."],
+        )
         self.queue_draw()
 
     def _draw(self, area, cr, width: int, height: int) -> None:

@@ -70,26 +70,35 @@ class IcmpAdapter(CheckAdapter):
 
     def __init__(self, runner: ProcessRunner, ping_path: str | None = None):
         self.runner = runner
-        self.ping_path = ping_path or shutil.which("ping") or next(
-            (p for p in ("/usr/bin/ping", "/bin/ping", "/usr/sbin/ping") if os.path.exists(p)), None
+        self.ping_path = (
+            ping_path
+            or shutil.which("ping")
+            or next((p for p in ("/usr/bin/ping", "/bin/ping", "/usr/sbin/ping") if os.path.exists(p)), None)
         )
 
     def availability(self) -> tuple[bool, str]:
         if not self.ping_path:
-            return False, "The 'ping' command was not found. Install iputils (Fedora: iputils, Debian/Ubuntu: iputils-ping)."
+            return (
+                False,
+                "The 'ping' command was not found. Install iputils (Fedora: iputils, Debian/Ubuntu: iputils-ping).",
+            )
         return True, self.ping_path
 
     def check(self, target: Target, timeout: float) -> CheckResult:
         started = time.time()
         if not self.ping_path:
-            return self._result(target, False, started, error=ErrorCategory.MISSING_DEPENDENCY, detail="ping not installed")
+            return self._result(
+                target, False, started, error=ErrorCategory.MISSING_DEPENDENCY, detail="ping not installed"
+            )
         wait = max(1, int(math.ceil(timeout)))
         argv = [self.ping_path, "-n", "-c", "1", "-W", str(wait), target.address]
         mono = time.monotonic()
         try:
             res = self.runner.run(argv, timeout=wait + 3)
         except FileNotFoundError:
-            return self._result(target, False, started, error=ErrorCategory.MISSING_DEPENDENCY, detail="ping not installed")
+            return self._result(
+                target, False, started, error=ErrorCategory.MISSING_DEPENDENCY, detail="ping not installed"
+            )
         except PermissionError:
             return self._result(target, False, started, error=ErrorCategory.PERMISSION, detail="cannot execute ping")
         elapsed_ms = (time.monotonic() - mono) * 1000
@@ -161,7 +170,9 @@ class HttpAdapter(CheckAdapter):
             conn.close()
         latency = (time.monotonic() - mono) * 1000
         if status >= 500:
-            return self._result(target, False, started, error=ErrorCategory.HTTP_ERROR, detail=f"HTTP {status}", latency_ms=latency)
+            return self._result(
+                target, False, started, error=ErrorCategory.HTTP_ERROR, detail=f"HTTP {status}", latency_ms=latency
+            )
         return self._result(target, True, started, latency_ms=latency, detail=f"HTTP {status}")
 
 

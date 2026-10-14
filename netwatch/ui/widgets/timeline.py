@@ -95,8 +95,10 @@ class TimelineBar(Gtk.DrawingArea):
         downs = sum(1 for s in segments if s.state in DOWN_STATES)
         self.update_property(
             [Gtk.AccessibleProperty.DESCRIPTION],
-            [f"{len(segments)} periods from {format_timestamp(start)} to {format_timestamp(end)}, "
-             f"{downs} without connectivity. Use left and right arrow keys to inspect periods, Enter to select."],
+            [
+                f"{len(segments)} periods from {format_timestamp(start)} to {format_timestamp(end)}, "
+                f"{downs} without connectivity. Use left and right arrow keys to inspect periods, Enter to select."
+            ],
         )
         self.queue_draw()
 
@@ -162,8 +164,11 @@ class TimelineBar(Gtk.DrawingArea):
         for i in range(n):
             frac = i / (n - 1)
             t = self.start + frac * span
-            text = "now" if i == n - 1 and self.now is not None and abs(self.end - self.now) < 120 else \
-                format_axis_label(t, span)
+            text = (
+                "now"
+                if i == n - 1 and self.now is not None and abs(self.end - self.now) < 120
+                else format_axis_label(t, span)
+            )
             layout = self.create_pango_layout(text)
             tw, th = layout.get_pixel_size()
             x = frac * width - (tw if i == n - 1 else 0 if i == 0 else tw / 2)
@@ -174,8 +179,10 @@ class TimelineBar(Gtk.DrawingArea):
     # ------------------------------------------------------------ interaction
     def describe(self, seg: Segment) -> str:
         end = "now" if seg.ongoing else format_timestamp(seg.end, seconds=seg.duration < 600)
-        text = f"{seg.state.label}\n{format_timestamp(seg.start, seconds=seg.duration < 600)} – {end}\n" \
-               f"Duration: {format_duration(seg.duration, precise=True)}"
+        text = (
+            f"{seg.state.label}\n{format_timestamp(seg.start, seconds=seg.duration < 600)} – {end}\n"
+            f"Duration: {format_duration(seg.duration, precise=True)}"
+        )
         if seg.targets and seg.state == ConnState.ONLINE:
             text += f"\nResponding: {seg.targets}"
         if seg.reason and seg.state != ConnState.ONLINE:

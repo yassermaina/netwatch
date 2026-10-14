@@ -116,16 +116,26 @@ ICONS = {
 
 
 class MenuItem:
-    def __init__(self, item_id: int, label: str = "", callback: Optional[Callable[[], None]] = None,
-                 separator: bool = False, enabled: bool = True, toggle: Optional[bool] = None):
+    def __init__(
+        self,
+        item_id: int,
+        label: str = "",
+        callback: Optional[Callable[[], None]] = None,
+        separator: bool = False,
+        enabled: bool = True,
+        toggle: Optional[bool] = None,
+    ):
         self.id, self.label, self.callback = item_id, label, callback
         self.separator, self.enabled, self.toggle = separator, enabled, toggle
 
     def props(self) -> dict:
         if self.separator:
             return {"type": GLib.Variant("s", "separator")}
-        p = {"label": GLib.Variant("s", self.label), "enabled": GLib.Variant("b", self.enabled),
-             "visible": GLib.Variant("b", True)}
+        p = {
+            "label": GLib.Variant("s", self.label),
+            "enabled": GLib.Variant("b", self.enabled),
+            "visible": GLib.Variant("b", True),
+        }
         if self.toggle is not None:
             p["toggle-type"] = GLib.Variant("s", "checkmark")
             p["toggle-state"] = GLib.Variant("i", 1 if self.toggle else 0)
@@ -170,7 +180,8 @@ class StatusIcon:
             return
         self._name_id = Gio.bus_own_name_on_connection(self.bus, self.service, Gio.BusNameOwnerFlags.NONE, None, None)
         self._watch_id = Gio.bus_watch_name_on_connection(
-            self.bus, WATCHER, Gio.BusNameWatcherFlags.NONE, self._watcher_appeared, self._watcher_vanished)
+            self.bus, WATCHER, Gio.BusNameWatcherFlags.NONE, self._watcher_appeared, self._watcher_vanished
+        )
 
     def stop(self) -> None:
         if self.bus is None:
@@ -191,12 +202,24 @@ class StatusIcon:
             return "shown by a StatusNotifier host"
         if self.error:
             return self.error
-        return ("no StatusNotifier host found (on GNOME install the AppIndicator extension); "
-                "reopen NetWatch from the app launcher instead")
+        return (
+            "no StatusNotifier host found (on GNOME install the AppIndicator extension); "
+            "reopen NetWatch from the app launcher instead"
+        )
 
     def _watcher_appeared(self, conn, name, owner) -> None:
-        conn.call(WATCHER, "/StatusNotifierWatcher", WATCHER, "RegisterStatusNotifierItem",
-                  GLib.Variant("(s)", (self.service,)), None, Gio.DBusCallFlags.NONE, 3000, None, self._registered)
+        conn.call(
+            WATCHER,
+            "/StatusNotifierWatcher",
+            WATCHER,
+            "RegisterStatusNotifierItem",
+            GLib.Variant("(s)", (self.service,)),
+            None,
+            Gio.DBusCallFlags.NONE,
+            3000,
+            None,
+            self._registered,
+        )
 
     def _registered(self, conn, result) -> None:
         try:

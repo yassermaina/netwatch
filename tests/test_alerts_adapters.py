@@ -1,5 +1,6 @@
 """Alert policy, ping parsing and local network probe fallbacks."""
 
+import os
 import wave
 
 from netwatch.alerts import AlertManager, SoundPlayer
@@ -104,7 +105,10 @@ def test_generated_sound_files_are_valid(tmp_path):
 
 def test_ping_failure_classification():
     assert classify_ping_failure(1, "1 packets transmitted, 0 received", "")[0] == ErrorCategory.TIMEOUT
-    assert classify_ping_failure(1, "From 10.0.0.1 icmp_seq=1 Destination Host Unreachable", "")[0] == ErrorCategory.UNREACHABLE
+    assert (
+        classify_ping_failure(1, "From 10.0.0.1 icmp_seq=1 Destination Host Unreachable", "")[0]
+        == ErrorCategory.UNREACHABLE
+    )
     assert classify_ping_failure(2, "", "ping: connect: Network is unreachable")[0] == ErrorCategory.NETWORK_DOWN
     assert classify_ping_failure(2, "", "ping: example.invalid: Name or service not known")[0] == ErrorCategory.DNS
     assert classify_ping_failure(2, "", "ping: socket: Operation not permitted")[0] == ErrorCategory.PERMISSION
@@ -159,5 +163,19 @@ def test_sysfs_probe_fallback(tmp_path):
 
 def test_wifi_helpers():
     assert frequency_to_channel(5180) == 36 and frequency_to_channel(2437) == 6
-    info = parse_iw_link("Connected to aa:bb\n\tsignal: -45 dBm\n\trx bitrate: 1200.9 MBit/s 80MHz HE-MCS 11 HE-NSS 2\n")
+    info = parse_iw_link(
+        "Connected to aa:bb\n\tsignal: -45 dBm\n\trx bitrate: 1200.9 MBit/s 80MHz HE-MCS 11 HE-NSS 2\n"
+    )
     assert info == {"signal_dbm": -45, "standard": "802.11ax"}
+
+
+def test_autostart_entry_is_explicit_and_removable():
+    from netwatch.autostart import autostart_enabled, autostart_file, set_autostart
+
+    assert not autostart_enabled()
+    set_autostart(True)
+    text = autostart_file().read_text()
+    assert "--background" in text and "X-GNOME-Autostart-enabled=true" in text
+    assert str(autostart_file()).startswith(os.environ["XDG_CONFIG_HOME"])  # XDG path, never system-wide
+    set_autostart(False)
+    assert not autostart_enabled()

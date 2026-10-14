@@ -55,7 +55,9 @@ class FakeAdapter(CheckAdapter):
     def check(self, target, timeout):
         outcome = self.outcomes.get(target.address, True)
         if outcome is True:
-            return CheckResult(target.id, target.address, "icmp", True, self.clock(), latency_ms=12.5, packets_received=1)
+            return CheckResult(
+                target.id, target.address, "icmp", True, self.clock(), latency_ms=12.5, packets_received=1
+            )
         error = outcome if isinstance(outcome, ErrorCategory) else ErrorCategory.TIMEOUT
         return CheckResult(target.id, target.address, "icmp", False, self.clock(), error=error, detail=error.label)
 

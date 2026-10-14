@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "netwatch"
+version = "1.0.0"
+description = "Local-first network connectivity and outage monitor for the Linux desktop (GTK4/Libadwaita)"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [{ name = "NetWatch contributors" }]
+classifiers = [
+  "Environment :: X11 Applications :: GTK",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Topic :: System :: Networking :: Monitoring",
+]
+# PyGObject, pycairo, GTK 4 and Libadwaita are taken from the distribution
+# (python3-gobject/python3-gi, python3-cairo/python3-gi-cairo); they are not
+# declared here so pip never tries to build them.
+dependencies = []
+
+[project.scripts]
+netwatch = "netwatch.main:main"
+
+[tool.setuptools]
+packages = ["netwatch", "netwatch.monitor", "netwatch.storage", "netwatch.ui", "netwatch.ui.pages",
+            "netwatch.ui.widgets"]
+
+[tool.setuptools.package-data]
+"netwatch.ui" = ["*.css"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -100,9 +100,13 @@ def build_report(
             "evidence, e.g. right after start or when checks could not run)."
         )
     if any(not o.start_observed for o in s.outages):
-        limitations.append("Some outages were already in progress when monitoring started; their real start is unknown.")
+        limitations.append(
+            "Some outages were already in progress when monitoring started; their real start is unknown."
+        )
     if any(not o.end_observed and not o.ongoing for o in s.outages):
-        limitations.append("Some outages ended because monitoring stopped, paused or was interrupted; recovery was not observed.")
+        limitations.append(
+            "Some outages ended because monitoring stopped, paused or was interrupted; recovery was not observed."
+        )
     if any(o.ongoing for o in s.outages):
         limitations.append("An outage is still ongoing at report time.")
     limitations.append(
@@ -157,19 +161,26 @@ def render_txt(r: ReportData) -> str:
     w = out.write
     w(f"{APP_NAME} connectivity report — {r.title}\n")
     w("=" * 60 + "\n")
-    w(f"Generated:        {_t(r.generated_at)} {time.strftime('%Z (UTC%z)', time.localtime(r.generated_at))}"
-      f" on {r.hostname}\n")
-    w(f"Requested range:  {_t(r.range_start)} → {_t(r.range_end)}"
-      f" ({format_duration_long(s.range_duration)})\n")
+    w(
+        f"Generated:        {_t(r.generated_at)} {time.strftime('%Z (UTC%z)', time.localtime(r.generated_at))}"
+        f" on {r.hostname}\n"
+    )
+    w(f"Requested range:  {_t(r.range_start)} → {_t(r.range_end)} ({format_duration_long(s.range_duration)})\n")
     w(f"Monitored:        {format_duration_long(s.monitored)} ({format_percent(s.coverage_pct, 1)} coverage)\n")
     w(f"Uptime:           {format_percent(s.uptime_pct)} of monitored time\n")
-    w(f"Total downtime:   {format_duration(s.downtime, precise=True)} ({format_percent(s.downtime_pct)} of monitored time)\n")
+    w(
+        f"Total downtime:   {format_duration(s.downtime, precise=True)} ({format_percent(s.downtime_pct)} of monitored time)\n"
+    )
     w(f"Outages:          {s.outage_count}\n")
     if lo:
-        w(f"Longest outage:   {format_duration(lo.duration_in_range, precise=True)}"
-          f" ({outage_label(lo)}, started {_t(lo.start)})\n")
-    w(f"Not monitored:    app not running {format_duration_long(s.not_running)}, paused {format_duration_long(s.paused)},"
-      f" unknown {format_duration_long(s.unknown)}\n")
+        w(
+            f"Longest outage:   {format_duration(lo.duration_in_range, precise=True)}"
+            f" ({outage_label(lo)}, started {_t(lo.start)})\n"
+        )
+    w(
+        f"Not monitored:    app not running {format_duration_long(s.not_running)}, paused {format_duration_long(s.paused)},"
+        f" unknown {format_duration_long(s.unknown)}\n"
+    )
     active_targets = ", ".join(t.address for t in r.targets.values() if t.enabled)
     w(f"Targets:          {active_targets or 'none'}\n\n")
 
@@ -179,8 +190,10 @@ def render_txt(r: ReportData) -> str:
     for o in s.outages:
         start = _t(o.start) + ("" if o.start_observed else " (start not observed)")
         end = "ongoing" if o.ongoing else _t(o.end)
-        w(f"#{o.id}  {o.classification.short_label:<14} {start} → {end}  "
-          f"{format_duration(o.full_duration, precise=True)}  [{outage_label(o)}]\n")
+        w(
+            f"#{o.id}  {o.classification.short_label:<14} {start} → {end}  "
+            f"{format_duration(o.full_duration, precise=True)}  [{outage_label(o)}]\n"
+        )
         if o.targets:
             w(f"      targets: {_outage_targets(o)}\n")
     w("\nMonitoring interruptions\n------------------------\n")
@@ -193,8 +206,11 @@ def render_txt(r: ReportData) -> str:
     for seg in r.history.segments:
         end = "now" if seg.ongoing else _t(seg.end)
         details = _seg_details(seg)
-        w(f"{_t(seg.start)} → {end}  {seg.state.short_label:<16} {format_duration(seg.duration):>8}"
-          + (f"  {details}" if details else "") + "\n")
+        w(
+            f"{_t(seg.start)} → {end}  {seg.state.short_label:<16} {format_duration(seg.duration):>8}"
+            + (f"  {details}" if details else "")
+            + "\n"
+        )
     w("\nLimitations\n-----------\n")
     for item in r.limitations:
         w(f"* {item}\n")
@@ -204,8 +220,21 @@ def render_txt(r: ReportData) -> str:
 
 # ----------------------------------------------------------------- CSV
 CSV_COLUMNS = [
-    "record_type", "state", "start_utc", "end_utc", "start_local", "end_local", "duration_seconds",
-    "duration", "ongoing", "outage_id", "start_observed", "end_observed", "targets", "interface", "details",
+    "record_type",
+    "state",
+    "start_utc",
+    "end_utc",
+    "start_local",
+    "end_local",
+    "duration_seconds",
+    "duration",
+    "ongoing",
+    "outage_id",
+    "start_observed",
+    "end_observed",
+    "targets",
+    "interface",
+    "details",
 ]
 
 
@@ -231,40 +260,45 @@ def render_csv(r: ReportData) -> str:
     summary("longest_outage_seconds", f"{lo.duration_in_range:.0f}" if lo else "0")
     for seg in r.history.segments:
         local = seg.local
-        writer.writerow([
-            "unmonitored" if seg.synthetic else ("paused" if seg.state == ConnState.PAUSED else "state"),
-            seg.state.short_label,
-            format_iso_utc(seg.start),
-            "" if seg.ongoing else format_iso_utc(seg.end),
-            format_iso_local(seg.start),
-            "" if seg.ongoing else format_iso_local(seg.end),
-            f"{seg.duration:.0f}",
-            format_duration(seg.duration, precise=True),
-            "yes" if seg.ongoing else "no",
-            seg.outage_id or "",
-            "", "",
-            seg.targets or "",
-            local.describe() if local else "",
-            seg.reason or "",
-        ])
+        writer.writerow(
+            [
+                "unmonitored" if seg.synthetic else ("paused" if seg.state == ConnState.PAUSED else "state"),
+                seg.state.short_label,
+                format_iso_utc(seg.start),
+                "" if seg.ongoing else format_iso_utc(seg.end),
+                format_iso_local(seg.start),
+                "" if seg.ongoing else format_iso_local(seg.end),
+                f"{seg.duration:.0f}",
+                format_duration(seg.duration, precise=True),
+                "yes" if seg.ongoing else "no",
+                seg.outage_id or "",
+                "",
+                "",
+                seg.targets or "",
+                local.describe() if local else "",
+                seg.reason or "",
+            ]
+        )
     for o in s.outages:
-        writer.writerow([
-            "outage",
-            o.classification.short_label,
-            format_iso_utc(o.start),
-            "" if o.ongoing else format_iso_utc(o.end),
-            format_iso_local(o.start),
-            "" if o.ongoing else format_iso_local(o.end),
-            f"{o.full_duration:.0f}",
-            format_duration(o.full_duration, precise=True),
-            "yes" if o.ongoing else "no",
-            o.id,
-            "yes" if o.start_observed else "no",
-            "yes" if o.end_observed else "no",
-            _outage_targets(o),
-            "",
-            outage_label(o),
-        ])
+        writer.writerow(
+            [
+                "outage",
+                o.classification.short_label,
+                format_iso_utc(o.start),
+                "" if o.ongoing else format_iso_utc(o.end),
+                format_iso_local(o.start),
+                "" if o.ongoing else format_iso_local(o.end),
+                f"{o.full_duration:.0f}",
+                format_duration(o.full_duration, precise=True),
+                "yes" if o.ongoing else "no",
+                o.id,
+                "yes" if o.start_observed else "no",
+                "yes" if o.end_observed else "no",
+                _outage_targets(o),
+                "",
+                outage_label(o),
+            ]
+        )
     return out.getvalue()
 
 
@@ -276,10 +310,16 @@ def _timeline_svg(r: ReportData, width: int = 960, height: int = 36) -> str:
         x = (seg.start - r.range_start) / span * width
         w = max(0.75, seg.duration / span * width)
         color = STATE_COLORS[seg.state]
-        title = html.escape(f"{seg.state.label}: {format_iso_local(seg.start)} – "
-                            f"{'now' if seg.ongoing else format_iso_local(seg.end)} ({format_duration(seg.duration)})")
-        pattern = ' fill="url(#hatch)"' if seg.state in (ConnState.NOT_RUNNING, ConnState.PAUSED) else f' fill="{color}"'
-        rects.append(f'<rect x="{x:.2f}" y="0" width="{w:.2f}" height="{height}"{pattern}><title>{title}</title></rect>')
+        title = html.escape(
+            f"{seg.state.label}: {format_iso_local(seg.start)} – "
+            f"{'now' if seg.ongoing else format_iso_local(seg.end)} ({format_duration(seg.duration)})"
+        )
+        pattern = (
+            ' fill="url(#hatch)"' if seg.state in (ConnState.NOT_RUNNING, ConnState.PAUSED) else f' fill="{color}"'
+        )
+        rects.append(
+            f'<rect x="{x:.2f}" y="0" width="{w:.2f}" height="{height}"{pattern}><title>{title}</title></rect>'
+        )
     return (
         f'<svg viewBox="0 0 {width} {height}" class="timeline" role="img" aria-label="Event timeline" '
         f'preserveAspectRatio="none"><defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" '
@@ -296,15 +336,18 @@ def render_html(r: ReportData) -> str:
     def card(label: str, value: str, cls: str = "") -> str:
         return f'<div class="card"><div class="label">{e(label)}</div><div class="value {cls}">{e(value)}</div></div>'
 
-    outage_rows = "".join(
-        f"<tr><td>#{o.id}</td><td><span class='dot' style='background:{STATE_COLORS[o.classification]}'></span>"
-        f"{e(o.classification.short_label)}</td>"
-        f"<td>{e(format_iso_local(o.start))}{'' if o.start_observed else ' <em>(start not observed)</em>'}</td>"
-        f"<td>{'ongoing' if o.ongoing else e(format_iso_local(o.end))}</td>"
-        f"<td class='num'>{e(format_duration(o.full_duration, precise=True))}</td><td>{e(outage_label(o))}</td>"
-        f"<td>{e(_outage_targets(o))}</td></tr>"
-        for o in s.outages
-    ) or "<tr><td colspan='7' class='empty'>No outages recorded in this range.</td></tr>"
+    outage_rows = (
+        "".join(
+            f"<tr><td>#{o.id}</td><td><span class='dot' style='background:{STATE_COLORS[o.classification]}'></span>"
+            f"{e(o.classification.short_label)}</td>"
+            f"<td>{e(format_iso_local(o.start))}{'' if o.start_observed else ' <em>(start not observed)</em>'}</td>"
+            f"<td>{'ongoing' if o.ongoing else e(format_iso_local(o.end))}</td>"
+            f"<td class='num'>{e(format_duration(o.full_duration, precise=True))}</td><td>{e(outage_label(o))}</td>"
+            f"<td>{e(_outage_targets(o))}</td></tr>"
+            for o in s.outages
+        )
+        or "<tr><td colspan='7' class='empty'>No outages recorded in this range.</td></tr>"
+    )
     seg_rows = "".join(
         f"<tr><td><span class='dot' style='background:{STATE_COLORS[seg.state]}'></span>{e(seg.state.label)}</td>"
         f"<td>{e(format_iso_local(seg.start))}</td><td>{'now' if seg.ongoing else e(format_iso_local(seg.end))}</td>"
@@ -313,8 +356,13 @@ def render_html(r: ReportData) -> str:
     )
     legend = "".join(
         f"<span><i style='background:{STATE_COLORS[st]}'></i>{e(st.label)}</span>"
-        for st in (ConnState.ONLINE, ConnState.NO_INTERNET, ConnState.NOT_CONNECTED, ConnState.UNKNOWN,
-                   ConnState.NOT_RUNNING)
+        for st in (
+            ConnState.ONLINE,
+            ConnState.NO_INTERNET,
+            ConnState.NOT_CONNECTED,
+            ConnState.UNKNOWN,
+            ConnState.NOT_RUNNING,
+        )
     )
     limitations = "".join(f"<li>{e(x)}</li>" for x in r.limitations)
     return f"""<!DOCTYPE html>

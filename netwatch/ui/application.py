@@ -72,13 +72,12 @@ SHORTCUTS_UI = """
 
 
 class NetWatchApplication(Adw.Application):
-    def __init__(self, db_path: Path, background_mode: bool = False, non_unique: bool = False):
+    def __init__(self, db_path: Path, non_unique: bool = False):
         flags = Gio.ApplicationFlags.HANDLES_COMMAND_LINE
         if non_unique:  # tests / tools: do not talk to a running instance
             flags |= Gio.ApplicationFlags.NON_UNIQUE
         super().__init__(application_id=APP_ID, flags=flags)
         self.db_path = db_path
-        self.start_hidden = background_mode
         self.window = None
         self.tray: Optional[StatusIcon] = None
         self.engine: Optional[MonitorEngine] = None
@@ -118,7 +117,10 @@ class NetWatchApplication(Adw.Application):
             last = max(r["ended_at"] for r in self.recovered)
             self.window.show_banner(
                 f"NetWatch stopped unexpectedly last time (last check {format_timestamp(last)}). "
-                "The time since then is shown as App Not Running.", "Dismiss", lambda: None)
+                "The time since then is shown as App Not Running.",
+                "Dismiss",
+                lambda: None,
+            )
         if self.settings.get("start_monitoring_on_launch"):
             self.engine.start()
         else:
@@ -167,8 +169,9 @@ class NetWatchApplication(Adw.Application):
         if dark and self._dark_provider is None:
             self._dark_provider = Gtk.CssProvider()
             self._dark_provider.load_from_path(str(PKG_DIR / "style-dark.css"))
-            Gtk.StyleContext.add_provider_for_display(display, self._dark_provider,
-                                                      Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 1)
+            Gtk.StyleContext.add_provider_for_display(
+                display, self._dark_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 1
+            )
         elif not dark and self._dark_provider is not None:
             Gtk.StyleContext.remove_provider_for_display(display, self._dark_provider)
             self._dark_provider = None
@@ -207,8 +210,11 @@ class NetWatchApplication(Adw.Application):
 
     def _show_fatal(self, message: str) -> None:
         win = Adw.ApplicationWindow(application=self, title=APP_NAME, default_width=520, default_height=360)
-        page = Adw.StatusPage(icon_name="dialog-error-symbolic", title="NetWatch could not open its database",
-                              description=GLib.markup_escape_text(f"{message}\n\nDatabase: {self.db_path}"))
+        page = Adw.StatusPage(
+            icon_name="dialog-error-symbolic",
+            title="NetWatch could not open its database",
+            description=GLib.markup_escape_text(f"{message}\n\nDatabase: {self.db_path}"),
+        )
         tv = Adw.ToolbarView()
         tv.add_top_bar(Adw.HeaderBar())
         tv.set_content(page)
@@ -286,10 +292,17 @@ class NetWatchApplication(Adw.Application):
             self.show_window()
             self.window.navigate("settings")
             dialogs.choose(
-                self.window, "Quit with unsaved settings?", "Your settings changes have not been saved.",
-                [("cancel", "Cancel", ""), ("discard", "Discard and Quit", "destructive"),
-                 ("save", "Save and Quit", "suggested")],
-                lambda rid: self._quit_after(rid), default="save")
+                self.window,
+                "Quit with unsaved settings?",
+                "Your settings changes have not been saved.",
+                [
+                    ("cancel", "Cancel", ""),
+                    ("discard", "Discard and Quit", "destructive"),
+                    ("save", "Save and Quit", "suggested"),
+                ],
+                lambda rid: self._quit_after(rid),
+                default="save",
+            )
             return
         self.quit()
 
@@ -306,20 +319,30 @@ class NetWatchApplication(Adw.Application):
             self._presented = False
             if not self.settings.get("background_notice_shown"):
                 self.notifier.notify(
-                    "info", "NetWatch is still monitoring",
+                    "info",
+                    "NetWatch is still monitoring",
                     "The window was closed but monitoring continues in the background. "
-                    + ("Use the status icon to reopen it or quit." if self.tray and self.tray.available else
-                       "Launch NetWatch again to reopen the window, or choose Quit to stop."),
-                    force=True)
+                    + (
+                        "Use the status icon to reopen it or quit."
+                        if self.tray and self.tray.available
+                        else "Launch NetWatch again to reopen the window, or choose Quit to stop."
+                    ),
+                    force=True,
+                )
                 self.settings.set("background_notice_shown", True)
             return True
         return False
 
     def show_about(self) -> None:
-        kwargs = dict(application_name=APP_NAME, application_icon=APP_ID, version=__version__,
-                      developer_name="NetWatch contributors", license_type=Gtk.License.MIT_X11,
-                      comments="Local-first network connectivity and outage monitor for the Linux desktop.",
-                      website="https://github.com/netwatch-app/netwatch")
+        kwargs = dict(
+            application_name=APP_NAME,
+            application_icon=APP_ID,
+            version=__version__,
+            developer_name="NetWatch contributors",
+            license_type=Gtk.License.MIT_X11,
+            comments="Local-first network connectivity and outage monitor for the Linux desktop.",
+            website="https://github.com/netwatch-app/netwatch",
+        )
         if hasattr(Adw, "AboutDialog"):
             Adw.AboutDialog(**kwargs).present(self.window)
         else:
@@ -349,8 +372,9 @@ class NetWatchApplication(Adw.Application):
                 self.window.show_banner(message, "Restart", self._restart_engine)
                 self._notify_error(message)
             elif lifecycle == Lifecycle.STOPPED:
-                self.window.show_banner("Monitoring is stopped. Nothing is being recorded.", "Start",
-                                        self.start_monitoring)
+                self.window.show_banner(
+                    "Monitoring is stopped. Nothing is being recorded.", "Start", self.start_monitoring
+                )
             elif lifecycle == Lifecycle.RUNNING:
                 self.window.show_banner(None)
             self.history_changed()
@@ -364,17 +388,22 @@ class NetWatchApplication(Adw.Application):
             self._outage_started = t.effective_at
             self.alerts.outage_started()
             title = "Internet connection lost" if t.new == ConnState.NO_INTERNET else "Network disconnected"
-            body = ("Your network is connected but no internet target responds." if t.new == ConnState.NO_INTERNET
-                    else "There is no active network connection.")
+            body = (
+                "Your network is connected but no internet target responds."
+                if t.new == ConnState.NO_INTERNET
+                else "There is no active network connection."
+            )
             self.notifier.notify("outage", title, body)
         elif t.previous in DOWN_STATES and t.new not in DOWN_STATES:
             recovered = t.new == ConnState.ONLINE
             self.alerts.outage_ended(recovered=recovered)
             if recovered:
                 dur = t.effective_at - self._outage_started if self._outage_started else None
-                self.notifier.notify("recovery", "Connection restored",
-                                     f"Back online after {format_duration(dur, precise=True)}." if dur else
-                                     "Back online.")
+                self.notifier.notify(
+                    "recovery",
+                    "Connection restored",
+                    f"Back online after {format_duration(dur, precise=True)}." if dur else "Back online.",
+                )
             self._outage_started = None
         self.history_changed()
 
@@ -387,6 +416,7 @@ class NetWatchApplication(Adw.Application):
     def _restart_engine(self) -> None:
         def work():
             self.engine.stop(reason="restart")
+
         background.run_async(work, lambda _r: self.engine.start())
 
     # ------------------------------------------------------------ tray
@@ -423,8 +453,10 @@ class NetWatchApplication(Adw.Application):
             self.window.pages["overview"].tick_clock()
             snap = self.engine.snapshot
             self.window.sidebar_status.set_label(
-                f"{snap.lifecycle.label} · {snap.state.short_label if snap.lifecycle == Lifecycle.RUNNING else ''}"
-                .rstrip(" ·"))
+                f"{snap.lifecycle.label} · {snap.state.short_label if snap.lifecycle == Lifecycle.RUNNING else ''}".rstrip(
+                    " ·"
+                )
+            )
         return GLib.SOURCE_CONTINUE
 
     def _tick_30s(self) -> bool:
@@ -437,8 +469,9 @@ class NetWatchApplication(Adw.Application):
         days = int(self.settings.get("retention_days"))
         if days > 0:
             cutoff = time.time() - days * 86400
-            background.run_async(lambda: self.repo.prune_measurements(cutoff),
-                                 lambda n: n and log.info("pruned %s old measurements", n))
+            background.run_async(
+                lambda: self.repo.prune_measurements(cutoff), lambda n: n and log.info("pruned %s old measurements", n)
+            )
         return GLib.SOURCE_CONTINUE
 
     def _prune_once(self) -> bool:
@@ -449,8 +482,11 @@ class NetWatchApplication(Adw.Application):
     def apply_settings(self, keys: set, initial: bool = False) -> None:
         s = self.settings
         if "theme" in keys:
-            scheme = {"system": Adw.ColorScheme.DEFAULT, "light": Adw.ColorScheme.FORCE_LIGHT,
-                      "dark": Adw.ColorScheme.FORCE_DARK}[s.get("theme")]
+            scheme = {
+                "system": Adw.ColorScheme.DEFAULT,
+                "light": Adw.ColorScheme.FORCE_LIGHT,
+                "dark": Adw.ColorScheme.FORCE_DARK,
+            }[s.get("theme")]
             Adw.StyleManager.get_default().set_color_scheme(scheme)
         if "density" in keys and self.window:
             (self.window.add_css_class if s.get("density") == "compact" else self.window.remove_css_class)("nw-compact")
@@ -471,8 +507,12 @@ class NetWatchApplication(Adw.Application):
         if "retention_days" in keys and not initial:
             self._prune()
         if keys & {"interval_seconds", "timeout_seconds", "failure_threshold", "recovery_threshold"} and not initial:
-            self.repo.log_event("settings_changed", "Monitoring settings changed", self.engine.session_id,
-                                data={k: s.get(k) for k in keys})
+            self.repo.log_event(
+                "settings_changed",
+                "Monitoring settings changed",
+                self.engine.session_id,
+                data={k: s.get(k) for k in keys},
+            )
             self.window.pages["overview"].reload_targets()
 
     def targets_changed(self) -> None:
@@ -507,9 +547,11 @@ class NetWatchApplication(Adw.Application):
             self.repo.recover_interrupted_sessions()
             self.repo.log_event("restored", f"Database restored from {path}")
 
-        background.run_async(work, lambda _r: self._reload_after_data_swap(was_active, "Backup restored"),
-                             lambda exc: (dialogs.message(self.window, "Restore failed", str(exc)),
-                                          was_active and self.engine.start()))
+        background.run_async(
+            work,
+            lambda _r: self._reload_after_data_swap(was_active, "Backup restored"),
+            lambda exc: (dialogs.message(self.window, "Restore failed", str(exc)), was_active and self.engine.start()),
+        )
 
     def relocate_database(self, target: Path) -> None:
         was_active = self.engine.is_active
@@ -525,9 +567,14 @@ class NetWatchApplication(Adw.Application):
             self.db.reopen()
             self.db.migrate()
 
-        background.run_async(work, lambda _r: self._reload_after_data_swap(was_active, f"Database moved to {target}"),
-                             lambda exc: (dialogs.message(self.window, "Could not move the database", str(exc)),
-                                          was_active and self.engine.start()))
+        background.run_async(
+            work,
+            lambda _r: self._reload_after_data_swap(was_active, f"Database moved to {target}"),
+            lambda exc: (
+                dialogs.message(self.window, "Could not move the database", str(exc)),
+                was_active and self.engine.start(),
+            ),
+        )
 
     # ------------------------------------------------------------ shutdown
     def _on_signal(self, sig) -> bool:

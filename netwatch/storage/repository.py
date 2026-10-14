@@ -144,8 +144,11 @@ class Repository:
                     "UPDATE connection_states SET ended_at = ? WHERE session_id = ? AND ended_at > ?",
                     (end, row["id"], end),
                 )
-                self._w("DELETE FROM connection_states WHERE session_id = ? AND ended_at <= started_at AND ended_at IS NOT NULL "
-                        "AND started_at > ?", (row["id"], end))
+                self._w(
+                    "DELETE FROM connection_states WHERE session_id = ? AND ended_at <= started_at AND ended_at IS NOT NULL "
+                    "AND started_at > ?",
+                    (row["id"], end),
+                )
                 for outage in self.db.query(
                     "SELECT * FROM outages WHERE session_id = ? AND status = 'ongoing'", (row["id"],)
                 ):
@@ -426,9 +429,13 @@ class Repository:
         with self.tx():
             if keep_session_id is not None:
                 self._w("DELETE FROM measurements WHERE session_id = ?", (keep_session_id,))
-                self._w("DELETE FROM connection_states WHERE session_id = ? AND ended_at IS NOT NULL", (keep_session_id,))
-                self._w("UPDATE connection_states SET started_at = ? WHERE session_id = ? AND ended_at IS NULL",
-                        (now, keep_session_id))
+                self._w(
+                    "DELETE FROM connection_states WHERE session_id = ? AND ended_at IS NOT NULL", (keep_session_id,)
+                )
+                self._w(
+                    "UPDATE connection_states SET started_at = ? WHERE session_id = ? AND ended_at IS NULL",
+                    (now, keep_session_id),
+                )
                 self._w("DELETE FROM outages WHERE status != 'ongoing'")
                 self._w("UPDATE outages SET started_at = ?, start_observed = 0 WHERE status = 'ongoing'", (now,))
                 self._w("UPDATE monitoring_sessions SET started_at = ? WHERE id = ?", (now, keep_session_id))
@@ -444,16 +451,27 @@ class Repository:
             row = self.get_state(state_id)
             if row is None or row["ended_at"] is None:
                 return
-            self._w("DELETE FROM measurements WHERE session_id = ? AND ts >= ? AND ts < ?",
-                    (row["session_id"], row["started_at"], row["ended_at"]))
-            self._w("DELETE FROM outages WHERE ended_at IS NOT NULL AND started_at >= ? AND ended_at <= ?",
-                    (row["started_at"], row["ended_at"]))
+            self._w(
+                "DELETE FROM measurements WHERE session_id = ? AND ts >= ? AND ts < ?",
+                (row["session_id"], row["started_at"], row["ended_at"]),
+            )
+            self._w(
+                "DELETE FROM outages WHERE ended_at IS NOT NULL AND started_at >= ? AND ended_at <= ?",
+                (row["started_at"], row["ended_at"]),
+            )
             self._w("DELETE FROM connection_states WHERE id = ?", (state_id,))
             self.log_event("history_deleted", "Deleted one event", data={"state_id": state_id})
 
     # -------------------------------------------------------------- diagnostics
     def counts(self) -> dict[str, int]:
         result = {}
-        for table in ("monitoring_sessions", "measurements", "connection_states", "outages", "application_events", "targets"):
+        for table in (
+            "monitoring_sessions",
+            "measurements",
+            "connection_states",
+            "outages",
+            "application_events",
+            "targets",
+        ):
             result[table] = self.db.query_one(f"SELECT COUNT(*) AS n FROM {table}")["n"]
         return result
