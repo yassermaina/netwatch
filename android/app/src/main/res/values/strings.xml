@@ -1,1 +1,4 @@
-<resources><string name="app_name">NetWatch</string></resources>
+<resources>
+    <string name="app_name">NetWatch</string>
+    <string name="fgs_reason">Continuously checks internet connectivity in the background to detect and record outages, as requested by the user.</string>
+</resources>

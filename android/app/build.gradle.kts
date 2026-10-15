@@ -31,16 +31,37 @@ val outDir = layout.buildDirectory.dir("apk")
 
 kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }
 tasks.withType<JavaCompile>().configureEach { options.release.set(17) }
-java { sourceSets["main"].java.srcDir(genDir) }
+java {
+    sourceSets["main"].java.srcDir(genDir)
+    sourceSets["test"].java.srcDir("src/testShim/java")
+}
+
+// android.jar without org.json stubs: lets Robolectric's runner see android.* types while the core
+// tests keep using the real org.json implementation.
+val androidStubsForTests by tasks.registering(Jar::class) {
+    archiveFileName.set("android-stubs-tests.jar")
+    destinationDirectory.set(layout.buildDirectory.dir("intermediates"))
+    from(zipTree(androidJar)) { exclude("org/json/**", "org/xmlpull/**", "org/apache/**") }
+}
 
 dependencies {
     compileOnly(files(androidJar))
+    testRuntimeOnly(files(androidStubsForTests))
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
 
     // Core logic is Android-free; tests run on the JVM with real org.json and SQLite (JDBC).
+    testCompileOnly(files(androidJar))
     testImplementation("org.json:json:20240303")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
+    // UI smoke tests run the real activity under Robolectric. Its androidx.test dependencies live on
+    // Google Maven only, so they are excluded (Robolectric works without them for these tests).
+    testImplementation("org.robolectric:robolectric:4.16") {
+        exclude(group = "androidx.test")
+        exclude(group = "androidx.test.espresso")
+        exclude(group = "androidx.annotation")
+        exclude(group = "androidx.core")
+    }
     testImplementation("org.xerial:sqlite-jdbc:3.47.1.0")
 }
 
@@ -72,6 +93,29 @@ val linkResources by tasks.registering(Exec::class) {
 }
 tasks.named("compileKotlin") { dependsOn(linkResources) }
 tasks.named("compileJava") { dependsOn(linkResources) }
+
+// Robolectric reads this file (normally written by the Android Gradle Plugin) to find the resources.
+val robolectricConfig by tasks.registering {
+    dependsOn(linkResources)
+    val out = layout.buildDirectory.dir("generated/robolectric")
+    outputs.dir(out)
+    doLast {
+        val f = out.get().file("com/android/tools/test_config.properties").asFile
+        f.parentFile.mkdirs()
+        f.writeText(
+            "android_merged_manifest=${file("src/main/AndroidManifest.xml").path}\n" +
+                "android_resource_apk=${layout.buildDirectory.file("intermediates/base.apk").get().asFile.path}\n" +
+                "android_custom_package=io.github.netwatch.android\n"
+        )
+    }
+}
+sourceSets["test"].resources.srcDir(robolectricConfig)
+
+tasks.withType<Test>().configureEach {
+    systemProperty("robolectric.logging.enabled", "true")
+    systemProperty("robolectric.dependency.repo.url", "https://maven-central.storage-download.googleapis.com/maven2")
+    maxHeapSize = "2g"
+}
 
 // ---------------------------------------------------------------- dex (R8 shrinks Kotlin stdlib + coroutines)
 val dex by tasks.registering(JavaExec::class) {
@@ -118,7 +162,7 @@ val assembleApk by tasks.registering {
         val u = unsigned.get().asFile
         layout.buildDirectory.file("intermediates/base.apk").get().asFile.copyTo(u, overwrite = true)
         val dexDir = layout.buildDirectory.dir("intermediates/dex").get().asFile
-        providers.exec { workingDir(dexDir); commandLine("zip", "-q", "-X", u.path, *dexDir.list()!!.sorted().toTypedArray()) }.result.get()
+        providers.exec { workingDir(dexDir); commandLine("zip", "-q", "-X", u.path, *dexDir.list()!!.filter { it.endsWith(".dex") }.sorted().toTypedArray()) }.result.get()
         providers.exec { commandLine(zipalign, "-p", "-f", "4", u.path, aligned.get().asFile.path) }.result.get()
         val out = finalApk.get().asFile.apply { parentFile.mkdirs() }
         providers.exec {

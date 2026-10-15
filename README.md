@@ -12,6 +12,12 @@ It does not need an account, a cloud service, an API key or a subscription. All 
 |---|---|---|
 | ![](docs/screenshots/overview-dark.png) | ![](docs/screenshots/performance-dark.png) | ![](docs/screenshots/outage-history-light.png) |
 
+## Android version
+
+A native Android app (Kotlin, Android 8.0+) with the same state model, reliability rules, database schema and
+reports lives in [`android/`](android/README.md). A ready-to-install `netwatch-1.0.0.apk` is provided with the
+release ZIP.
+
 ## Features
 
 - **Separate states.** NetWatch keeps *No Internet* (the network is connected but internet targets fail) apart from *Not Connected* (no usable network) and from *App Not Running*, *Paused* and *Unknown* periods.
