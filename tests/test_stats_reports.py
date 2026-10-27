@@ -153,13 +153,13 @@ def test_write_report_csv_has_bom(tmp_path, repo, stats, settings):
 
 def test_migration_and_backup_restore(tmp_path):
     db = Database(tmp_path / "a.db")
-    assert db.migrate() == [1]
+    assert db.migrate() == [1, 2]
     assert db.migrate() == []  # idempotent
     repo = Repository(db)
     sid = repo.create_session(1.0, {}, "t")
     backup = tmp_path / "backup.db"
     db.backup_to(backup)
-    assert Database.validate_backup(backup) == 1
+    assert Database.validate_backup(backup) == 2
     repo.create_session(2.0, {}, "t")
     assert db.query_one("SELECT COUNT(*) n FROM monitoring_sessions")["n"] == 2
     db.restore_from(backup)
@@ -256,3 +256,50 @@ def test_delete_range_and_clear_all(repo, stats):
     repo.delete_all(live, t0 + 20000)
     assert repo.db.query_one("SELECT COUNT(*) n FROM connection_states")["n"] == 1
     assert repo.db.query_one("SELECT started_at FROM connection_states")["started_at"] == t0 + 20000
+
+
+def test_migration_backfills_network_for_existing_history(tmp_path):
+    """Databases from 1.0 get the network column filled from the stored interface details."""
+    import sqlite3
+
+    from netwatch.models import LocalNetworkStatus, WifiInfo
+    from netwatch.storage.migrations import MIGRATIONS
+
+    path = tmp_path / "old.db"
+    conn = sqlite3.connect(path)
+    conn.execute("CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at REAL NOT NULL)")
+    from netwatch.storage.db import _split_sql
+
+    for stmt in _split_sql(MIGRATIONS[0][2]):
+        conn.execute(stmt)
+    conn.execute("INSERT INTO schema_migrations VALUES (1, 'initial schema', 0)")
+    conn.execute("INSERT INTO monitoring_sessions(id, started_at, status, config_snapshot) VALUES (1, 0, 'stopped', '{}')")
+    iface = LocalNetworkStatus(True, "networkmanager", "wlan0", "wifi", wifi=WifiInfo(ssid="Home WiFi")).to_json()
+    conn.execute("INSERT INTO connection_states(session_id, state, started_at, ended_at, interface) VALUES (1, 'online', 0, 10, ?)", (iface,))
+    conn.execute("INSERT INTO outages(session_id, classification, started_at, detected_at, status, start_observed) "
+                 "VALUES (1, 'no_internet', 5, 5, 'recovered', 1)")
+    conn.commit()
+    conn.close()
+    db = Database(path)
+    assert db.migrate() == [2]
+    assert db.query_one("SELECT network FROM connection_states")["network"] == "Home WiFi"
+    assert db.query_one("SELECT network FROM outages")["network"] == "Home WiFi"
+    db.close()
+
+
+def test_reports_name_the_network_of_each_entry(repo, stats, settings):
+    t0 = 1_700_000_000.0
+    s = repo.create_session(t0, {}, "t")
+    a = repo.open_state(s, ConnState.ONLINE, t0, network="Home WiFi")
+    repo.close_state(a, t0 + 600)
+    b = repo.open_state(s, ConnState.NO_INTERNET, t0 + 600, network="Office")
+    repo.create_outage(s, ConnState.NO_INTERNET, t0 + 600, t0 + 600, True, [], network="Office")
+    repo.close_state(b, t0 + 900)
+    rep = build_report(repo, stats, settings, custom=(t0, t0 + 900), now=t0 + 900)
+    txt = render(rep, "txt")
+    assert "Networks" in txt and "[Home WiFi]" in txt and "network: Office" in txt
+    rows = list(csv.DictReader(io.StringIO(render(rep, "csv"))))
+    assert {r["network"] for r in rows if r["record_type"] == "state"} == {"Home WiFi", "Office"}
+    assert next(r for r in rows if r["record_type"] == "outage")["network"] == "Office"
+    html = render(rep, "html")
+    assert "<th>Network</th>" in html and "Home WiFi" in html

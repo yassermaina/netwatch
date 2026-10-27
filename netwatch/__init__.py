@@ -2,4 +2,4 @@
 
 APP_ID = "io.github.netwatch.NetWatch"
 APP_NAME = "NetWatch"
-__version__ = "1.0.0"
+__version__ = "1.1.0"

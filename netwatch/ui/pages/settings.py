@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, Callable, Optional
 
 from gi.repository import Adw, Gio, GLib, Gtk
 
+from netwatch.alerts import OUTAGE_SOUNDS, RECOVERY_SOUNDS, SOUND_FILE_TYPES, check_sound_file
 from netwatch.models import Target
 from netwatch.settings import CHECK_TYPES, validate, validate_target
 from netwatch.storage.repository import DuplicateTargetError
@@ -33,6 +34,7 @@ class SettingsPage(Gtk.Box):
         self.app = app
         self.fields: dict[str, tuple[Gtk.Widget, Callable[[], Any], Callable[[Any], None]]] = {}
         self.extra: dict[str, Any] = {}
+        self.sound_file_rows: dict[str, Adw.ActionRow] = {}
         self._loading = False
         self.page = Adw.PreferencesPage(vexpand=True)
         self.append(self.page)
@@ -152,17 +154,86 @@ class SettingsPage(Gtk.Box):
         )
         g = Adw.PreferencesGroup(title="Sound Alerts", description=desc)
         self._switch(g, "sound_enabled", "Sound alerts")
-        vol = self._spin(g, "sound_volume", "Volume", 0, 100, "Percent", step=5)
-        test = Gtk.Button(label="Test", valign=Gtk.Align.CENTER)
-        test.connect("clicked", lambda *_: self.app.sound_player.play("outage", int(vol.get_value())))
-        test.set_sensitive(player.available)
-        vol.add_suffix(test)
-        self._switch(g, "sound_repeat", "Repeat during outages", "Soft heartbeat while the outage lasts")
+        self.volume_row = self._spin(g, "sound_volume", "Volume", 0, 100, "Percent", step=5)
+        self._sound_choice(g, "outage", "Connection lost sound", OUTAGE_SOUNDS)
+        self._switch(g, "sound_repeat", "Repeat during outages", "Play the connection lost sound again while the outage lasts")
         self._spin(g, "sound_repeat_seconds", "Repeat every", 3, 3600, "Seconds")
         self._switch(g, "sound_recovery", "Recovery sound")
+        self._sound_choice(g, "recovery", "Connection restored sound", RECOVERY_SOUNDS)
         self._switch(g, "resume_alert_on_unmute", "Resume alert when unmuting during an outage")
         self._switch(g, "start_muted", "Start muted")
         self.page.add(g)
+
+    def _sound_choice(self, g: Adw.PreferencesGroup, kind: str, title: str, options: dict) -> None:
+        """Built-in sound or custom file for ``outage`` / ``recovery``, with a preview button."""
+        combo = self._combo(g, f"{kind}_sound_style", title, list(options.items()))
+        preview = Gtk.Button(icon_name="media-playback-start-symbolic", valign=Gtk.Align.CENTER, tooltip_text="Preview")
+        preview.add_css_class("flat")
+        preview.update_property([Gtk.AccessibleProperty.LABEL], [f"Preview {title.lower()}"])
+        preview.connect("clicked", lambda *_: self._preview(kind))
+        preview.set_sensitive(self.app.sound_player.available)
+        combo.add_suffix(preview)
+        file_row = Adw.ActionRow(title="Sound file", subtitle="No file chosen")
+        file_row.set_subtitle_selectable(True)
+        choose = Gtk.Button(label="Choose…", valign=Gtk.Align.CENTER)
+        choose.connect("clicked", lambda *_: self._choose_sound_file(kind))
+        file_row.add_suffix(choose)
+        g.add(file_row)
+        self.sound_file_rows[kind] = file_row
+        combo.connect("notify::selected", lambda *_: self._sync_sound_rows())
+
+    def _sound_file(self, kind: str) -> str:
+        key = f"{kind}_sound_file"
+        return str(self.extra.get(key, self.app.settings.get(key)) or "")
+
+    def _sync_sound_rows(self) -> None:
+        for kind, row in self.sound_file_rows.items():
+            row.set_visible(self.fields[f"{kind}_sound_style"][1]() == "custom")
+            path = self._sound_file(kind)
+            unsaved = f"{kind}_sound_file" in self.extra and self.extra[f"{kind}_sound_file"] != self.app.settings.get(
+                f"{kind}_sound_file"
+            )
+            row.set_subtitle((path + ("  (unsaved)" if unsaved else "")) if path else "No file chosen")
+
+    def _preview(self, kind: str) -> None:
+        style = self.fields[f"{kind}_sound_style"][1]()
+        sound = style
+        if style == "custom":
+            sound = self._sound_file(kind)
+            problem = check_sound_file(sound, self.app.sound_player.backend_name)
+            if problem:
+                self.app.window.toast(problem)
+                return
+        self.app.sound_player.play(sound, int(self.volume_row.get_value()))
+
+    def _choose_sound_file(self, kind: str) -> None:
+        dlg = Gtk.FileDialog(title="Choose a Sound File", modal=True)
+        flt = Gtk.FileFilter()
+        flt.set_name("Sound files")
+        for ext in SOUND_FILE_TYPES:
+            flt.add_suffix(ext.lstrip("."))
+        filters = Gio.ListStore.new(Gtk.FileFilter)
+        filters.append(flt)
+        dlg.set_filters(filters)
+        current = self._sound_file(kind)
+        if current:
+            dlg.set_initial_file(Gio.File.new_for_path(current))
+
+        def done(d, res) -> None:
+            try:
+                f = d.open_finish(res)
+            except GLib.Error:
+                return
+            if f and f.get_path():
+                problem = check_sound_file(f.get_path(), self.app.sound_player.backend_name)
+                if problem:
+                    self.app.window.toast(problem)
+                    return
+                self.extra[f"{kind}_sound_file"] = f.get_path()
+                self._sync_sound_rows()
+                self._changed()
+
+        dlg.open(self.app.window, None, done)
 
     def _build_notifications(self) -> None:
         g = Adw.PreferencesGroup(title="Desktop Notifications")
@@ -250,6 +321,7 @@ class SettingsPage(Gtk.Box):
         self._loading = False
         self.db_row.set_subtitle(str(self.app.db.path))
         self.reports_row.set_subtitle(str(reports_dir(self.app)))
+        self._sync_sound_rows()
         self.reload_targets()
         self._changed()
 

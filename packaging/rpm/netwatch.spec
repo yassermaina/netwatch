@@ -7,7 +7,7 @@
 %{!?python3_version: %global python3_version %(python3 -c "import sys; print('%d.%d' % sys.version_info[:2])")}
 
 Name:           netwatch
-Version:        1.0.0
+Version:        1.1.0
 Release:        1%{?dist}
 Summary:        Local-first network connectivity and outage monitor (GTK4/Libadwaita)
 
@@ -64,6 +64,7 @@ PYTHONPATH=%{buildroot}%{python3_sitelib} python3 -c "import netwatch.monitor.en
 %license LICENSE
 %doc README.md
 %{_bindir}/netwatch
+%{_bindir}/netwatch-update
 %{python3_sitelib}/netwatch/
 %{_datadir}/applications/io.github.netwatch.NetWatch.desktop
 %{_datadir}/metainfo/io.github.netwatch.NetWatch.metainfo.xml
@@ -71,5 +72,9 @@ PYTHONPATH=%{buildroot}%{python3_sitelib} python3 -c "import netwatch.monitor.en
 %{_datadir}/icons/hicolor/symbolic/apps/io.github.netwatch.NetWatch*-symbolic.svg
 
 %changelog
+* Tue Oct 27 2026 NetWatch contributors - 1.1.0-1
+- Louder, selectable alert sounds and custom sound files
+- History, details and reports show which network each entry belongs to
+- New netwatch-update command for in-place updates
 * Wed Oct 14 2026 NetWatch contributors - 1.0.0-1
 - First release

@@ -53,6 +53,15 @@ PAGE_SIZE = 60
 JUMP_CONTEXT = 10  # rows shown above an event that is jumped to
 
 
+def segment_network(seg: Segment, outage=None) -> Optional[str]:
+    """Network an entry belongs to; a disconnection is attributed to the network that dropped."""
+    if seg.network:
+        return seg.network
+    if outage is not None and getattr(outage, "network", None) and seg.state in DOWN_STATES:
+        return outage.network
+    return None
+
+
 class EventRow(Gtk.ListBoxRow):
     def __init__(self, seg: Segment, outage, now: float):
         super().__init__()
@@ -66,11 +75,17 @@ class EventRow(Gtk.ListBoxRow):
         title = label(f"{format_timestamp(seg.start, now)} – {end}", ("nw-event-title",))
         title.set_ellipsize(Pango.EllipsizeMode.END)
         text.append(title)
-        sub = seg.state.short_label
+        esc = GLib.markup_escape_text
+        sub = esc(seg.state.short_label)
+        network = segment_network(seg, outage)
+        if network:
+            prefix = "" if seg.network else "last network: "
+            sub += f" · <b>{esc(prefix + network)}</b>"
         if seg.targets:
             targets = seg.targets.split(", ")
-            sub += " · " + (targets[0] if seg.state == ConnState.ONLINE else ", ".join(targets[:3]))
-        subtitle = label(sub, ("dim-label", "nw-event-sub"))
+            sub += " · " + esc(targets[0] if seg.state == ConnState.ONLINE else ", ".join(targets[:3]))
+        subtitle = label("", ("dim-label", "nw-event-sub"))
+        subtitle.set_markup(sub)
         subtitle.set_ellipsize(Pango.EllipsizeMode.END)
         text.append(subtitle)
         detail = ""
@@ -104,6 +119,8 @@ class EventRow(Gtk.ListBoxRow):
         box.append(self.duration)
         self.set_child(box)
         a11y = f"{seg.state.label}, {format_timestamp(seg.start, now)} to {end}, {format_duration(seg.duration, precise=True)}"
+        if network:
+            a11y += f", network {network}"
         if outage is not None:
             a11y += f", outage {outage.id}"
         self.update_property([Gtk.AccessibleProperty.LABEL], [a11y])
@@ -303,6 +320,11 @@ class HistoryPage(Gtk.Box):
         self.target_filter.set_tooltip_text("Filter by target")
         self.target_filter.connect("notify::selected", lambda *_: self._apply_filters())
         self.target_options: list[Optional[str]] = [None]
+        self.network_filter = Gtk.DropDown.new_from_strings(["All networks"])
+        self.network_filter.set_tooltip_text("Filter by network (Wi-Fi name or connection)")
+        self.network_filter.update_property([Gtk.AccessibleProperty.LABEL], ["Filter by network"])
+        self.network_filter.connect("notify::selected", lambda *_: self._apply_filters())
+        self.network_options: list[Optional[str]] = [None]
         self.day_chip = Gtk.Box(spacing=4, valign=Gtk.Align.CENTER)
         self.day_chip.add_css_class("nw-filter-chip")
         self.day_chip_label = label("")
@@ -313,7 +335,7 @@ class HistoryPage(Gtk.Box):
         clear.connect("clicked", lambda *_: self._on_day_selected(None, from_calendar=False))
         self.day_chip.append(clear)
         self.day_chip.set_visible(False)
-        for w in (self.search, self.state_filter, self.target_filter, self.day_chip):
+        for w in (self.search, self.state_filter, self.network_filter, self.target_filter, self.day_chip):
             filters.append(w)
             w.get_parent().set_focusable(False)
         self.log_section.append(filters)
@@ -445,6 +467,17 @@ class HistoryPage(Gtk.Box):
         self.timeline.set_data(data.segments, s.range_start, s.range_end, now)
         # targets filter options
         addresses = sorted({t.address for t in targets.values()})
+        networks = []
+        for seg in reversed(data.segments):
+            name = segment_network(seg, data.outages_by_id.get(seg.outage_id) if seg.outage_id else None)
+            if name and name not in networks:
+                networks.append(name)
+        if networks != self.network_options[1:]:
+            current = self.network_options[self.network_filter.get_selected()] if self.network_options else None
+            self.network_options = [None, *networks]
+            self.network_filter.set_model(Gtk.StringList.new(["All networks", *networks]))
+            if current in self.network_options:
+                self.network_filter.set_selected(self.network_options.index(current))
         if addresses != self.target_options[1:]:
             current = self.target_options[self.target_filter.get_selected()] if self.target_options else None
             self.target_options = [None, *addresses]
@@ -469,6 +502,10 @@ class HistoryPage(Gtk.Box):
             return False
         if target is not None and (not seg.targets or target not in seg.targets.split(", ")):
             return False
+        network = self.network_options[self.network_filter.get_selected()] if self.network_options else None
+        outage = self.data.outages_by_id.get(seg.outage_id) if (self.data and seg.outage_id) else None
+        if network is not None and segment_network(seg, outage) != network:
+            return False
         if self.day_filter is not None:
             d = self.day_filter
             ds, de = day_start_of(d.day), day_start_of(d.day + timedelta(days=1))
@@ -481,6 +518,7 @@ class HistoryPage(Gtk.Box):
                     None,
                     [
                         seg.state.label,
+                        segment_network(seg, outage),
                         seg.targets,
                         seg.reason,
                         local.describe() if local else "",
@@ -578,6 +616,7 @@ class HistoryPage(Gtk.Box):
             self.search.set_text("")
             self.state_filter.set_selected(0)
             self.target_filter.set_selected(0)
+            self.network_filter.set_selected(0)
             self._on_day_selected(None, from_calendar=False)
             self._select_key(seg.key)
 

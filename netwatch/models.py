@@ -173,6 +173,18 @@ class LocalNetworkStatus:
     wifi: Optional[WifiInfo] = None
     detail: str = ""
 
+    @property
+    def network_name(self) -> Optional[str]:
+        """Short name of the network in use (Wi-Fi SSID, connection name or interface), if connected."""
+        if self.connected is False:
+            return None
+        if self.kind == "wifi":
+            ssid = self.wifi.ssid if self.wifi else None
+            return ssid or self.connection_name or (f"Wi-Fi ({self.interface})" if self.interface else "Wi-Fi")
+        if self.kind == "ethernet":
+            return self.connection_name or (f"Ethernet ({self.interface})" if self.interface else "Ethernet")
+        return self.connection_name or self.interface
+
     def describe(self) -> str:
         """Human readable interface description, using only observed fields."""
         if self.kind == "wifi":

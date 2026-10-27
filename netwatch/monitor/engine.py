@@ -91,6 +91,8 @@ class MonitorEngine:
         self._state: ConnState = ConnState.UNKNOWN
         self._state_started: float = 0.0
         self._interface_json: Optional[str] = None
+        self._network: Optional[str] = None  # network in use right now (SSID / connection name)
+        self._last_network: Optional[str] = None  # most recent known network, kept while disconnected
         self._outage_id: Optional[int] = None
         self._paused = False
         self._last_wall: Optional[float] = None
@@ -313,8 +315,9 @@ class MonitorEngine:
     def _open_state(
         self, state: ConnState, started: float, detected: float, targets: Optional[str] = None, reason: str = ""
     ) -> None:
+        network = self._network if state in (ConnState.ONLINE, ConnState.NO_INTERNET, ConnState.UNKNOWN) else None
         self._state_id = self.repo.open_state(
-            self.session_id, state, started, detected, targets, self._interface_json, reason
+            self.session_id, state, started, detected, targets, self._interface_json, reason, network
         )
         self._state = state
         self._state_started = started
@@ -429,15 +432,38 @@ class MonitorEngine:
         if self._stopping.is_set():
             return None  # checks were aborted by shutdown; do not record them
         interface_json = local.to_json() if local.connected else None
+        network = local.network_name
         transition = None
         with self.repo.tx():
             self.repo.insert_measurements(self.session_id, results)
             self.repo.heartbeat(self.session_id, now)
             transition = self.classifier.observe(results, local, now)
+            previous_network = self._network
+            network_changed = network is not None and previous_network is not None and network != previous_network
+            first_seen = network is not None and previous_network is None
+            if local.connected is False:
+                self._network = None
+            elif network is not None:
+                self._network = network
+                self._last_network = network
             if transition is not None:
                 self._interface_json = interface_json
                 self._apply_transition(transition, results)
+            elif network_changed and self._state_id is not None and self._state != ConnState.PAUSED:
+                # A new network starts a new history entry, so every entry belongs to exactly one network.
+                self._interface_json = interface_json
+                self.repo.close_state(self._state_id, now)
+                self._open_state(self._state, max(now, self._state_started), now,
+                                 reason=f"Connected to {network}")
+                self.repo.log_event("network_changed", f"Network changed to {network}", self.session_id,
+                                    data={"network": network}, ts=now)
+                if self._outage_id is not None:
+                    self.repo.record_outage_failures(self._outage_id, results)
             else:
+                if first_seen and self._state_id is not None and self._state != ConnState.PAUSED and (
+                    self._state != ConnState.NOT_CONNECTED
+                ):
+                    self.repo.set_state_network(self._state_id, network)
                 if self._outage_id is not None:
                     self.repo.record_outage_failures(self._outage_id, results)
                 if interface_json and interface_json != self._interface_json and self._state == ConnState.ONLINE:
@@ -502,6 +528,7 @@ class MonitorEngine:
                 effective,
                 t.detected_at,
                 start_observed=t.previous == ConnState.ONLINE,
+                network=self._network or self._last_network,
                 evidence=evidence,
             )
             self.repo.record_outage_failures(self._outage_id, results)

@@ -244,3 +244,40 @@ def test_stop_kills_in_flight_ping(repo, settings, tmp_path):
     assert time.time() - started < 5
     assert runner.active_count() == 0
     assert repo.db.query_one("SELECT COUNT(*) n FROM measurements")["n"] == 0
+
+
+def wifi(ssid):
+    from netwatch.models import WifiInfo
+
+    return LocalNetworkStatus(connected=True, source="test", interface="wlan0", kind="wifi", wifi=WifiInfo(ssid=ssid))
+
+
+def test_history_entries_record_the_network_and_split_on_change(harness):
+    harness.probe.status = wifi("Home WiFi")
+    harness.engine.start(threaded=False)
+    harness.run(3)
+    harness.probe.status = wifi("Office")
+    harness.run(3)
+    harness.all_fail()
+    harness.run(3)
+    rows = [r for r in states(harness.repo) if r["state"] != "unknown"]
+    assert [(r["state"], r["network"]) for r in rows] == [
+        ("online", "Home WiFi"), ("online", "Office"), ("no_internet", "Office")
+    ]
+    assert outages(harness.repo)[0]["network"] == "Office"
+    assert harness.repo.networks() == ["Office", "Home WiFi"]
+    kinds = [r["kind"] for r in harness.repo.db.query("SELECT kind FROM application_events")]
+    assert "network_changed" in kinds
+
+
+def test_outage_when_disconnected_remembers_last_network(harness):
+    harness.probe.status = wifi("Cafe")
+    harness.engine.start(threaded=False)
+    harness.run(2)
+    harness.probe.status = LocalNetworkStatus(connected=False, source="test")
+    harness.all_fail(ErrorCategory.NETWORK_DOWN)
+    harness.run(3)
+    o = outages(harness.repo)[0]
+    assert o["classification"] == "not_connected" and o["network"] == "Cafe"
+    nc = [r for r in states(harness.repo) if r["state"] == "not_connected"][0]
+    assert nc["network"] is None

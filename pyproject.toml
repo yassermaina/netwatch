@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "netwatch"
-version = "1.0.0"
+version = "1.1.0"
 description = "Local-first network connectivity and outage monitor for the Linux desktop (GTK4/Libadwaita)"
 readme = "README.md"
 license = { text = "MIT" }

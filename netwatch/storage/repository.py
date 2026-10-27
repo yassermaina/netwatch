@@ -178,11 +178,12 @@ class Repository:
         targets: Optional[str] = None,
         interface: Optional[str] = None,
         reason: Optional[str] = None,
+        network: Optional[str] = None,
     ) -> int:
         cur = self._w(
-            "INSERT INTO connection_states(session_id, state, started_at, detected_at, targets, interface, reason) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (session_id, state.value, started_at, detected_at, targets, interface, reason),
+            "INSERT INTO connection_states(session_id, state, started_at, detected_at, targets, interface, reason, network) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (session_id, state.value, started_at, detected_at, targets, interface, reason, network),
         )
         return int(cur.lastrowid)
 
@@ -191,6 +192,17 @@ class Repository:
             "UPDATE connection_states SET ended_at = MAX(started_at, ?) WHERE id = ?",
             (ended_at, state_id),
         )
+
+    def set_state_network(self, state_id: int, network: str) -> None:
+        self._w("UPDATE connection_states SET network = ? WHERE id = ? AND network IS NULL", (network, state_id))
+
+    def networks(self) -> list[str]:
+        """All network names that appear in the history, most recently used first."""
+        rows = self.db.query(
+            "SELECT network, MAX(started_at) AS last FROM connection_states WHERE network IS NOT NULL "
+            "GROUP BY network ORDER BY last DESC"
+        )
+        return [r["network"] for r in rows]
 
     def update_state_interface(self, state_id: int, interface: str) -> None:
         self._w("UPDATE connection_states SET interface = ? WHERE id = ?", (interface, state_id))
@@ -221,11 +233,13 @@ class Repository:
         detected_at: float,
         start_observed: bool,
         evidence: list[dict],
+        network: Optional[str] = None,
     ) -> int:
         cur = self._w(
-            "INSERT INTO outages(session_id, classification, started_at, detected_at, status, start_observed, evidence) "
-            "VALUES (?, ?, ?, ?, 'ongoing', ?, ?)",
-            (session_id, classification.value, started_at, detected_at, int(start_observed), json.dumps(evidence)),
+            "INSERT INTO outages(session_id, classification, started_at, detected_at, status, start_observed, evidence, "
+            "network) VALUES (?, ?, ?, ?, 'ongoing', ?, ?, ?)",
+            (session_id, classification.value, started_at, detected_at, int(start_observed), json.dumps(evidence),
+             network),
         )
         return int(cur.lastrowid)
 

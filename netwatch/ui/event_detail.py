@@ -63,6 +63,12 @@ def show_event_detail(app: "NetWatchApplication", parent: Gtk.Widget, seg: Segme
         overview.add(_row("Reason", seg.reason))
     if seg.targets:
         overview.add(_row("Responding targets" if seg.state == ConnState.ONLINE else "Failing targets", seg.targets))
+    history = app.window.pages["history"].data
+    outage_info = history.outages_by_id.get(seg.outage_id) if (history and seg.outage_id) else None
+    if seg.network:
+        overview.add(_row("Network", seg.network))
+    elif outage_info is not None and outage_info.network:
+        overview.add(_row("Network", f"{outage_info.network} (connection lost)"))
     local = seg.local
     if local and local.describe():
         overview.add(_row("Network interface", local.describe()))
@@ -150,6 +156,8 @@ def show_event_detail(app: "NetWatchApplication", parent: Gtk.Widget, seg: Segme
         if o is not None and seg.state in DOWN_STATES:
             og = Adw.PreferencesGroup(title=f"Outage #{o.id}")
             og.add(_row("Status", outage_label(o)))
+            if o.network:
+                og.add(_row("Network", o.network))
             og.add(
                 _row(
                     "Start",

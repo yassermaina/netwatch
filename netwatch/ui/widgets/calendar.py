@@ -157,6 +157,8 @@ class CalendarHeatmap(Gtk.DrawingArea):
             f"{format_duration(d.downtime, precise=True)} downtime",
             CATEGORY_TEXT[d.category],
         ]
+        if d.networks:
+            lines.append("Networks: " + ", ".join(d.networks))
         return "\n".join(lines)
 
     def _on_tooltip(self, widget, x, y, keyboard, tooltip) -> bool:

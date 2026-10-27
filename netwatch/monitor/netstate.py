@@ -43,6 +43,9 @@ def frequency_to_channel(freq: int) -> Optional[int]:
 def parse_iw_link(output: str) -> dict:
     """Parse ``iw dev <if> link`` output for signal and PHY standard."""
     info: dict = {}
+    ssid = re.search(r"^\s*SSID:\s*(.+?)\s*$", output, re.M)
+    if ssid:
+        info["ssid"] = ssid.group(1)
     m = re.search(r"signal:\s*(-?\d+)\s*dBm", output)
     if m:
         info["signal_dbm"] = int(m.group(1))
@@ -199,6 +202,7 @@ class LocalNetworkProbe:
             except OSError:
                 data = {}
             self._detail_cache = (now, ifname, data)
+        info.ssid = info.ssid or data.get("ssid")  # NetworkManager's value wins when present
         info.signal_dbm = data.get("signal_dbm", info.signal_dbm)
         info.standard = data.get("standard", info.standard)
 

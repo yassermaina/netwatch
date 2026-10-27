@@ -12,21 +12,17 @@ It does not need an account, a cloud service, an API key or a subscription. All 
 |---|---|---|
 | ![](docs/screenshots/overview-dark.png) | ![](docs/screenshots/performance-dark.png) | ![](docs/screenshots/outage-history-light.png) |
 
-## Android version
-
-A native Android app (Kotlin, Android 8.0+) with the same state model, reliability rules, database schema and
-reports lives in [`android/`](android/README.md). A ready-to-install `netwatch-1.0.0.apk` is provided with the
-release ZIP.
-
 ## Features
 
 - **Separate states.** NetWatch keeps *No Internet* (the network is connected but internet targets fail) apart from *Not Connected* (no usable network) and from *App Not Running*, *Paused* and *Unknown* periods.
 - **Outage History.** The screen follows the reference design: period selector (24 h, 7 days, 30 days, all time), period summary (uptime, downtime, outage count, longest outage, monitoring coverage), calendar heat map, event timeline, and a searchable, filterable event log with per-event details.
 - **Overview.** Shows live status, the monitoring lifecycle, latency, 5-minute packet loss, today's outages and downtime, a last-hour timeline, per-target results, and Start/Pause/Resume/Stop/Mute controls.
 - **Performance.** Latency and packet-loss charts for 15 minutes, 1 hour, 24 hours or 7 days, with average, median, min, max and p95 per target. Missing data is never drawn as zero.
+- **Network names.** Every history entry and outage records the network you were connected to (the Wi-Fi name, or the wired connection's name). It shows in the event log, event details, calendar tooltips and reports, and the log can be filtered by network. Switching networks starts a new entry.
 - **Reports.** TXT, CSV and HTML exports for the selected period, a single event, or the whole retained history. Each report states its coverage and the limitations of the data.
 - **Alerts.**
-  - A subtle "heartbeat" sound that can repeat during an outage, plus an optional recovery chime. Volume is adjustable and muting never affects monitoring.
+  - A clearly audible alarm when the connection drops (it can repeat during an outage) and a chime when it comes back.
+  - Choose between several built-in sounds (alarm, siren, beep, soft heartbeat) or use your own sound file (WAV, OGG, FLAC, MP3) for each event, and preview them in Settings. Volume is adjustable and muting never affects monitoring.
   - Desktop notifications.
 - **Background operation.**
   - Closing the window keeps monitoring running.
@@ -84,8 +80,8 @@ Other options: `--db PATH` uses another database file (handy for testing), `--de
 **Debian/Ubuntu (quick binary package):**
 
 ```sh
-make deb                         # builds build/netwatch_1.0.0-1_all.deb with dpkg-deb
-sudo apt install ./build/netwatch_1.0.0-1_all.deb
+make deb                         # builds build/netwatch_1.1.0-1_all.deb with dpkg-deb
+sudo apt install ./build/netwatch_1.1.0-1_all.deb
 ```
 
 **Debian source package:** run `cp -r packaging/debian debian && dpkg-buildpackage -us -uc -b`. This needs debhelper, dh-python and pybuild-plugin-pyproject.
@@ -94,7 +90,7 @@ sudo apt install ./build/netwatch_1.0.0-1_all.deb
 
 ```sh
 sudo dnf install rpm-build make python3      # build tools (once)
-make rpm                                     # builds build/rpm/RPMS/noarch/netwatch-1.0.0-1.fcNN.noarch.rpm
+make rpm                                     # builds build/rpm/RPMS/noarch/netwatch-1.1.0-1.fcNN.noarch.rpm
 sudo dnf install ./build/rpm/RPMS/noarch/netwatch-*.noarch.rpm   # pulls in GTK4, Libadwaita, PyGObject, ...
 ```
 
@@ -108,6 +104,32 @@ Fedora version upgrade. Remove it with `sudo dnf remove netwatch`.
 sudo make install PREFIX=/usr
 ```
 
+## Updating
+
+Updating keeps your history, settings and targets. The database is upgraded automatically when NetWatch next starts.
+
+**From 1.0.0 (first time):** unpack the new release and run its update script:
+
+```sh
+unzip netwatch-1.1.0.zip && cd netwatch
+./update.sh
+```
+
+**Afterwards**, the `netwatch-update` command is installed. Point it at a newer release ZIP or folder:
+
+```sh
+netwatch-update ~/Downloads/netwatch-1.2.0.zip
+netwatch-update --check ~/Downloads/netwatch-1.2.0.zip   # only compare versions
+```
+
+The command:
+
+- detects how NetWatch was installed (`.deb`, `.rpm` or `make install`) and builds and installs the same kind of package. It asks for your password only for the install step.
+- stops a running NetWatch cleanly and starts it again afterwards (`--no-restart` skips the restart).
+- refuses to downgrade or reinstall the same version unless you pass `--force`.
+
+Other options: `-y` skips the confirmation and `--method deb|rpm|make` overrides the detection. On Fedora it installs `rpm-build` first if needed.
+
 ## Using NetWatch
 
 - **Overview.** Start, pause, resume or stop monitoring, mute alerts and change the check interval.
@@ -118,9 +140,11 @@ sudo make install PREFIX=/usr
   - Pick a period. Every metric, the calendar, the timeline and the log update together.
   - Hover a calendar day or timeline segment for details.
   - Click a day to filter the log to that day, or click a timeline segment to select that event in the log.
+  - Each log row shows the network it belongs to. Use the network menu above the log to show only one network; the search box matches network names too. For a disconnection, the row shows the network that was lost.
   - Activate a log row to open its details: measurements, failure reasons, recovery evidence and an event export.
   - The share button exports a report for the period. The trash button deletes the selected event, the period, or all history, always after a confirmation dialog.
 - **Reports.** Choose a range (including a custom date range) and a format, preview it, and export. The file chooser asks before overwriting an existing file.
+- **Settings → Sound Alerts.** Pick the *Connection lost* and *Connection restored* sounds, press ▶ to preview them, or choose *Custom sound file…* and select a file. If a custom file later disappears, NetWatch falls back to the built-in sound.
 - **Settings.** Changes are validated and saved explicitly with **Save**, and an unsaved-changes bar appears while edits are pending. Target edits are applied as soon as you confirm them.
 
 ### Keyboard shortcuts
@@ -273,7 +297,7 @@ Developer tools:
 
 These need a real session and network, which an automated container cannot provide:
 
-1. Unplug the cable or switch off Wi-Fi. Within *interval × failure threshold* the status should show **Not Connected**, the heartbeat sound should play, and a notification should appear.
+1. Unplug the cable or switch off Wi-Fi. Within *interval × failure threshold* the status should show **Not Connected**, the alarm sound should play, and a notification should appear.
 2. Keep Wi-Fi associated but block the internet, for example by unplugging the router's WAN link or running `sudo ip route del default`. The status should show **No Internet**.
 3. Restore the connection. You should hear the recovery chime and get a "Connection restored" notification with the outage duration.
 4. Close the window. Monitoring should continue, and the status icon should appear if a StatusNotifier host is present. Use the icon's menu to reopen the window, mute, or quit.
@@ -287,7 +311,7 @@ These need a real session and network, which an automated container cannot provi
 - **"Permission denied".** Your `ping` cannot open ICMP sockets. Check `sysctl net.ipv4.ping_group_range` or the `cap_net_raw` file capability on `ping`.
 - **No internet but browsing works.** Your network may block ICMP. Add an HTTP(S) target such as `https://example.com` in Settings → Targets.
 - **No status icon on GNOME.** Install the AppIndicator extension, or reopen NetWatch from the app grid.
-- **No sound.** Install `pipewire-utils`/`pipewire-bin` or `pulseaudio-utils`, then use Settings → Sound Alerts → Test.
+- **No sound or too quiet.** Install `pipewire-utils`/`pipewire-bin` or `pulseaudio-utils`. In Settings → Sound Alerts, raise the volume, pick *Alarm* or *Siren*, and press ▶ to preview. Also check that the system output volume is not muted.
 - **Charts are blank, or startup fails with "Cairo support".** Install `python3-gi-cairo` (Debian/Ubuntu) or `python3-cairo` (Fedora).
 - **Inspect the environment.** Run `netwatch --diagnostics`, or open *About & Diagnostics* and use **Copy Diagnostics**.
 

@@ -7,10 +7,10 @@ DATADIR = $(DESTDIR)$(PREFIX)/share
 PYTHON ?= python3
 APP_ID = io.github.netwatch.NetWatch
 
-.PHONY: all test install install-data install-python run deb rpm clean
+.PHONY: all test install install-data install-python run deb rpm update clean
 
 all:
-	@echo "Targets: test, run, install, install-data, deb, rpm"
+	@echo "Targets: test, run, install, install-data, deb, rpm, update"
 
 test:
 	@$(PYTHON) -c "import pytest" 2>/dev/null || { \
@@ -26,6 +26,7 @@ run:
 	./bin/netwatch
 
 install-data:
+	install -Dm755 packaging/netwatch-update $(DESTDIR)$(PREFIX)/bin/netwatch-update
 	install -Dm644 data/$(APP_ID).desktop $(DATADIR)/applications/$(APP_ID).desktop
 	install -Dm644 data/$(APP_ID).metainfo.xml $(DATADIR)/metainfo/$(APP_ID).metainfo.xml
 	install -Dm644 data/icons/hicolor/scalable/apps/$(APP_ID).svg $(DATADIR)/icons/hicolor/scalable/apps/$(APP_ID).svg
@@ -42,6 +43,9 @@ deb:
 
 rpm:
 	./packaging/build-rpm.sh
+
+update:
+	./update.sh
 
 clean:
 	rm -rf build dist *.egg-info .pytest_cache

@@ -23,7 +23,11 @@ DEFAULTS: dict[str, Any] = {
     "start_monitoring_on_launch": True,
     # Alerts
     "sound_enabled": True,
-    "sound_volume": 30,
+    "sound_volume": 80,
+    "outage_sound_style": "alarm",  # see alerts.OUTAGE_SOUNDS
+    "outage_sound_file": "",
+    "recovery_sound_style": "chime",  # see alerts.RECOVERY_SOUNDS
+    "recovery_sound_file": "",
     "sound_repeat": True,
     "sound_repeat_seconds": 15,
     "sound_recovery": True,
@@ -88,6 +92,8 @@ _RULES = [
 ]
 
 _ENUMS = {
+    "outage_sound_style": {"alarm", "siren", "beep", "heartbeat", "custom"},
+    "recovery_sound_style": {"chime", "beep", "custom"},
     "notifications_mode": {"always", "hidden", "never"},
     "theme": {"system", "light", "dark"},
     "density": {"comfortable", "compact"},
@@ -102,6 +108,13 @@ def validate(values: dict) -> list[ValidationError]:
     for key, allowed in _ENUMS.items():
         if values.get(key) not in allowed:
             errors.append(ValidationError(key, f"Invalid value for {key}."))
+    for kind, label in (("outage", "outage"), ("recovery", "recovery")):
+        if values.get(f"{kind}_sound_style") == "custom":
+            from netwatch.alerts import check_sound_file  # noqa: PLC0415
+
+            problem = check_sound_file(str(values.get(f"{kind}_sound_file") or ""), None)
+            if problem:
+                errors.append(ValidationError(f"{kind}_sound_file", f"Custom {label} sound: {problem}"))
     interval, timeout = values.get("interval_seconds"), values.get("timeout_seconds")
     if (
         isinstance(interval, (int, float))

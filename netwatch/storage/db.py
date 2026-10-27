@@ -17,7 +17,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 
-from netwatch.storage.migrations import LATEST_VERSION, MIGRATIONS
+from netwatch.storage.migrations import LATEST_VERSION, MIGRATIONS, POST_MIGRATION
 
 log = logging.getLogger(__name__)
 
@@ -128,6 +128,8 @@ class Database:
                 try:
                     for statement in _split_sql(script):
                         conn.execute(statement)
+                    if version in POST_MIGRATION:
+                        POST_MIGRATION[version](conn)
                     conn.execute(
                         "INSERT INTO schema_migrations(version, name, applied_at) VALUES (?, ?, ?)",
                         (version, name, time.time()),

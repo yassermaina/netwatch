@@ -39,16 +39,16 @@ def test_outage_alert_plays_once_then_repeats_on_schedule():
     mgr, player, t = make({"sound_repeat_seconds": 10})
     mgr.outage_started()
     mgr.outage_started()  # repeated failure reports do not restart the alert
-    assert player.played == ["outage"]
+    assert player.played == ["alarm"]
     for step in range(1, 10):
         t["now"] = step
         mgr.tick()
-    assert player.played == ["outage"]
+    assert player.played == ["alarm"]
     t["now"] = 10
     mgr.tick()
-    assert player.played == ["outage", "outage"]
+    assert player.played == ["alarm", "alarm"]
     mgr.outage_ended()
-    assert player.played[-1] == "recovery"
+    assert player.played[-1] == "chime"
 
 
 def test_muted_outage_is_silent_but_engine_records_it(harness):
@@ -68,7 +68,7 @@ def test_unmute_during_outage_resumes_when_configured():
     mgr, player, t = make({"muted": True, "resume_alert_on_unmute": True})
     mgr.outage_started()
     mgr.set_muted(False)
-    assert player.played == ["outage"]
+    assert player.played == ["alarm"]
     mgr2, player2, _ = make({"muted": True, "resume_alert_on_unmute": False})
     mgr2.outage_started()
     mgr2.set_muted(False)
@@ -83,7 +83,7 @@ def test_mute_stops_current_sound_and_recovery_respects_setting():
     assert player.stops == 1
     mgr.set_muted(False)
     mgr.outage_ended()
-    assert "recovery" not in player.played
+    assert "chime" not in player.played
 
 
 def test_no_backend_is_graceful(tmp_path, monkeypatch):
@@ -179,3 +179,65 @@ def test_autostart_entry_is_explicit_and_removable():
     assert str(autostart_file()).startswith(os.environ["XDG_CONFIG_HOME"])  # XDG path, never system-wide
     set_autostart(False)
     assert not autostart_enabled()
+
+
+def test_builtin_sounds_are_loud_and_in_the_speaker_range():
+    """The connection-lost sound must be clearly audible on laptop speakers (the old one was 62-140 Hz at 30%)."""
+    import struct as _struct
+
+    from netwatch.alerts import synthesize
+    from netwatch.settings import DEFAULTS as D
+
+    assert D["sound_volume"] >= 70 and D["outage_sound_style"] == "alarm"
+    for style in ("alarm", "siren", "beep", "chime"):
+        pcm = synthesize(style, 100)
+        samples = [abs(v) for (v,) in _struct.iter_unpack("<h", pcm)]
+        assert max(samples) > 32000, style  # normalised to full scale at 100%
+        # zero crossings per second ~ 2x the fundamental: well above what small speakers can't play
+        signs = [v > 0 for (v,) in _struct.iter_unpack("<h", pcm) if v != 0]
+        crossings = sum(1 for a, b in zip(signs, signs[1:]) if a != b)
+        assert crossings / (len(pcm) / 2 / 22050) > 900, style
+
+
+def test_cached_sound_files_are_versioned(tmp_path):
+    p = SoundPlayer(tmp_path)
+    (tmp_path / "outage-30.wav").write_bytes(b"old quiet file from 1.0")
+    path = p.sound_file("alarm", 80)
+    assert path.name.startswith("v2-") and path.exists()
+
+
+def test_custom_sound_file_and_fallback(tmp_path):
+    from netwatch.alerts import check_sound_file
+
+    good = tmp_path / "ding.ogg"
+    good.write_bytes(b"x")
+    mgr, player, t = make({"outage_sound_style": "custom", "outage_sound_file": str(good)})
+    mgr.outage_started()
+    assert player.played == [str(good)]
+    mgr2, player2, _ = make({"outage_sound_style": "custom", "outage_sound_file": str(tmp_path / "gone.wav")})
+    mgr2.outage_started()
+    assert player2.played == ["alarm"]  # never silent because a file was moved
+    assert check_sound_file(str(tmp_path / "x.txt"), None)
+    assert "aplay" in check_sound_file(str(good), "aplay")
+    assert check_sound_file(str(good), "paplay") is None
+
+
+def test_player_commands_apply_volume_to_custom_files(tmp_path):
+    f = tmp_path / "a.wav"
+    f.write_bytes(b"x")
+    p = SoundPlayer(tmp_path)
+    p.backend = ["/usr/bin/paplay"]
+    assert p.command(str(f), 50) == ["/usr/bin/paplay", "--volume=32768", str(f)]
+    p.backend = ["/usr/bin/pw-play"]
+    assert p.command(str(f), 80) == ["/usr/bin/pw-play", "--volume=0.80", str(f)]
+    assert p.command("alarm", 80)[-1].endswith("v2-alarm-80.wav")
+
+
+def test_custom_sound_settings_are_validated(settings):
+    errors = settings.update({"outage_sound_style": "custom", "outage_sound_file": ""})
+    assert errors and "Choose a sound file" in errors[0].message
+
+
+def test_iw_reports_ssid():
+    info = parse_iw_link("Connected to aa:bb (on wlan0)\n\tSSID: Home WiFi 5G\n\tfreq: 5180\n\tsignal: -50 dBm\n")
+    assert info["ssid"] == "Home WiFi 5G" and info["signal_dbm"] == -50

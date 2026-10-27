@@ -119,6 +119,37 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         CREATE INDEX idx_app_events_ts ON application_events(ts);
         """,
     ),
+    (
+        2,
+        "network name on history entries and outages",
+        """
+        ALTER TABLE connection_states ADD COLUMN network TEXT;
+        ALTER TABLE outages ADD COLUMN network TEXT;
+        CREATE INDEX idx_states_network ON connection_states(network);
+        """,
+    ),
 ]
 
 LATEST_VERSION = MIGRATIONS[-1][0]
+
+
+def backfill_network(conn) -> None:
+    """Fill the new network column from the interface details recorded by earlier versions."""
+    from netwatch.models import LocalNetworkStatus  # noqa: PLC0415
+
+    rows = conn.execute("SELECT id, interface FROM connection_states WHERE interface IS NOT NULL").fetchall()
+    for state_id, raw in rows:
+        status = LocalNetworkStatus.from_json(raw)
+        name = status.network_name if status else None
+        if name:
+            conn.execute("UPDATE connection_states SET network = ? WHERE id = ?", (name, state_id))
+    # an outage belongs to the network of the entry that was active when it was detected
+    conn.execute(
+        "UPDATE outages SET network = (SELECT cs.network FROM connection_states cs "
+        "WHERE cs.started_at <= outages.started_at AND cs.network IS NOT NULL "
+        "ORDER BY cs.started_at DESC LIMIT 1) WHERE network IS NULL"
+    )
+
+
+# Python steps run in the same transaction, right after a migration's SQL.
+POST_MIGRATION = {2: backfill_network}

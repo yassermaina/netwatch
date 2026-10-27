@@ -80,6 +80,19 @@ def test_event_log_filters(full):
     assert f["outages_only"] and f["search_hits"] >= 1 and f["search_all_match"]
 
 
+def test_event_log_network_filter(full):
+    n = full["networks"]
+    opts = n["options"]
+    assert opts[0] is None and opts.index("Office") < opts.index("Home WiFi")  # most recently used first
+    assert n["office_ok"] and n["has_disconnect"] and n["search_hits"] >= 3
+
+
+def test_custom_outage_sound_setting(full):
+    snd = full["sounds"]
+    assert snd["hidden_default"] and snd["shown_custom"] and snd["blocked_without_file"]
+    assert snd["saved"] and snd["style"] == "custom" and snd["file"]
+
+
 def test_monitoring_continues_while_hidden_and_muted(full):
     b = full["background"]
     assert b["hidden"] and b["ticks_while_hidden"] >= 2 and b["lifecycle"] == "running"

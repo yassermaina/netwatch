@@ -145,6 +145,31 @@ def _seg_details(seg: Segment) -> str:
     return "; ".join(bits)
 
 
+def seg_network(seg: Segment, r: "ReportData") -> str:
+    """Network of an entry; a disconnection is attributed to the network that dropped."""
+    if seg.network:
+        return seg.network
+    o = r.history.outages_by_id.get(seg.outage_id) if seg.outage_id else None
+    return (o.network or "") if o is not None else ""
+
+
+def network_breakdown(r: "ReportData") -> list[tuple[str, float, float, int]]:
+    """(network, monitored seconds, downtime seconds, outages) per network, most used first."""
+    stats: dict[str, list] = {}
+    for seg in r.history.segments:
+        name = seg_network(seg, r)
+        if not name or not seg.state.is_monitored:
+            continue
+        entry = stats.setdefault(name, [0.0, 0.0, 0])
+        entry[0] += seg.duration
+        if seg.state.is_down:
+            entry[1] += seg.duration
+    for o in r.history.summary.outages:
+        if o.network:
+            stats.setdefault(o.network, [0.0, 0.0, 0])[2] += 1
+    return sorted(((k, v[0], v[1], v[2]) for k, v in stats.items()), key=lambda x: -x[1])
+
+
 def _outage_targets(o: OutageInfo) -> str:
     return ", ".join(f"{t['address']} ({t['failure_count']} failed, last: {t['last_error']})" for t in o.targets)
 
@@ -184,6 +209,15 @@ def render_txt(r: ReportData) -> str:
     active_targets = ", ".join(t.address for t in r.targets.values() if t.enabled)
     w(f"Targets:          {active_targets or 'none'}\n\n")
 
+    w("Networks\n--------\n")
+    breakdown = network_breakdown(r)
+    if not breakdown:
+        w("No network names were recorded in this range.\n")
+    for name, monitored, down, count in breakdown:
+        w(f"{name:<28} monitored {format_duration_long(monitored):>9}  downtime {format_duration(down, precise=True):>9}"
+          f"  outages {count}\n")
+    w("\n")
+
     w("Outages\n-------\n")
     if not s.outages:
         w("No outages recorded in this range.\n")
@@ -192,7 +226,9 @@ def render_txt(r: ReportData) -> str:
         end = "ongoing" if o.ongoing else _t(o.end)
         w(
             f"#{o.id}  {o.classification.short_label:<14} {start} → {end}  "
-            f"{format_duration(o.full_duration, precise=True)}  [{outage_label(o)}]\n"
+            f"{format_duration(o.full_duration, precise=True)}  [{outage_label(o)}]"
+            + (f"  network: {o.network}" if o.network else "")
+            + "\n"
         )
         if o.targets:
             w(f"      targets: {_outage_targets(o)}\n")
@@ -206,8 +242,10 @@ def render_txt(r: ReportData) -> str:
     for seg in r.history.segments:
         end = "now" if seg.ongoing else _t(seg.end)
         details = _seg_details(seg)
+        network = seg_network(seg, r)
         w(
             f"{_t(seg.start)} → {end}  {seg.state.short_label:<16} {format_duration(seg.duration):>8}"
+            + (f"  [{network}]" if network else "")
             + (f"  {details}" if details else "")
             + "\n"
         )
@@ -222,6 +260,7 @@ def render_txt(r: ReportData) -> str:
 CSV_COLUMNS = [
     "record_type",
     "state",
+    "network",
     "start_utc",
     "end_utc",
     "start_local",
@@ -245,7 +284,7 @@ def render_csv(r: ReportData) -> str:
     writer.writerow(CSV_COLUMNS)
 
     def summary(metric: str, value: str) -> None:
-        writer.writerow(["summary", metric, "", "", "", "", "", "", "", "", "", "", "", "", value])
+        writer.writerow(["summary", metric] + [""] * (len(CSV_COLUMNS) - 3) + [value])
 
     summary("report", r.title)
     summary("generated_local", format_iso_local(r.generated_at))
@@ -264,6 +303,7 @@ def render_csv(r: ReportData) -> str:
             [
                 "unmonitored" if seg.synthetic else ("paused" if seg.state == ConnState.PAUSED else "state"),
                 seg.state.short_label,
+                seg_network(seg, r),
                 format_iso_utc(seg.start),
                 "" if seg.ongoing else format_iso_utc(seg.end),
                 format_iso_local(seg.start),
@@ -284,6 +324,7 @@ def render_csv(r: ReportData) -> str:
             [
                 "outage",
                 o.classification.short_label,
+                o.network or "",
                 format_iso_utc(o.start),
                 "" if o.ongoing else format_iso_utc(o.end),
                 format_iso_local(o.start),
@@ -343,15 +384,16 @@ def render_html(r: ReportData) -> str:
             f"<td>{e(format_iso_local(o.start))}{'' if o.start_observed else ' <em>(start not observed)</em>'}</td>"
             f"<td>{'ongoing' if o.ongoing else e(format_iso_local(o.end))}</td>"
             f"<td class='num'>{e(format_duration(o.full_duration, precise=True))}</td><td>{e(outage_label(o))}</td>"
-            f"<td>{e(_outage_targets(o))}</td></tr>"
+            f"<td>{e(o.network or '—')}</td><td>{e(_outage_targets(o))}</td></tr>"
             for o in s.outages
         )
-        or "<tr><td colspan='7' class='empty'>No outages recorded in this range.</td></tr>"
+        or "<tr><td colspan='8' class='empty'>No outages recorded in this range.</td></tr>"
     )
     seg_rows = "".join(
         f"<tr><td><span class='dot' style='background:{STATE_COLORS[seg.state]}'></span>{e(seg.state.label)}</td>"
         f"<td>{e(format_iso_local(seg.start))}</td><td>{'now' if seg.ongoing else e(format_iso_local(seg.end))}</td>"
-        f"<td class='num'>{e(format_duration(seg.duration, precise=True))}</td><td>{e(_seg_details(seg))}</td></tr>"
+        f"<td class='num'>{e(format_duration(seg.duration, precise=True))}</td>"
+        f"<td>{e(seg_network(seg, r) or '—')}</td><td>{e(_seg_details(seg))}</td></tr>"
         for seg in reversed(r.history.segments)
     )
     legend = "".join(
@@ -363,6 +405,14 @@ def render_html(r: ReportData) -> str:
             ConnState.UNKNOWN,
             ConnState.NOT_RUNNING,
         )
+    )
+    network_rows = (
+        "".join(
+            f"<tr><td>{e(name)}</td><td class='num'>{e(format_duration_long(monitored))}</td>"
+            f"<td class='num'>{e(format_duration(down, precise=True))}</td><td class='num'>{count}</td></tr>"
+            for name, monitored, down, count in network_breakdown(r)
+        )
+        or "<tr><td colspan='4' class='empty'>No network names were recorded in this range.</td></tr>"
     )
     limitations = "".join(f"<li>{e(x)}</li>" for x in r.limitations)
     return f"""<!DOCTYPE html>
@@ -405,11 +455,14 @@ Generated {e(format_iso_local(r.generated_at))} on {e(r.hostname)}</div>
 {_timeline_svg(r)}
 <div class="axis"><span>{e(format_iso_local(r.range_start))}</span><span>{e(format_iso_local(r.range_end))}</span></div>
 <div class="legend">{legend}</div>
+<h2>Networks</h2>
+<table><thead><tr><th>Network</th><th>Monitored</th><th>Downtime</th><th>Outages</th></tr></thead>
+<tbody>{network_rows}</tbody></table>
 <h2>Outages</h2>
-<table><thead><tr><th>ID</th><th>Type</th><th>Start</th><th>End</th><th>Duration</th><th>Status</th><th>Targets</th></tr></thead>
+<table><thead><tr><th>ID</th><th>Type</th><th>Start</th><th>End</th><th>Duration</th><th>Status</th><th>Network</th><th>Targets</th></tr></thead>
 <tbody>{outage_rows}</tbody></table>
 <h2>Events</h2>
-<table><thead><tr><th>State</th><th>Start</th><th>End</th><th>Duration</th><th>Details</th></tr></thead>
+<table><thead><tr><th>State</th><th>Start</th><th>End</th><th>Duration</th><th>Network</th><th>Details</th></tr></thead>
 <tbody>{seg_rows}</tbody></table>
 <h2>Limitations of the collected data</h2>
 <ul>{limitations}</ul>

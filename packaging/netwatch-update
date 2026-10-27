@@ -1,0 +1,231 @@
+#!/bin/sh
+# netwatch-update — update an installed NetWatch in place from a newer release.
+#
+#   netwatch-update ~/Downloads/netwatch-1.2.0.zip    # a release ZIP
+#   netwatch-update ~/src/netwatch                    # an unpacked source folder
+#   ./update.sh                                       # from inside an unpacked release
+#
+# It finds out how NetWatch was installed (.deb, .rpm or `make install`), builds
+# the same kind of package from the new sources and installs it over the old one.
+# Your history, settings and targets (~/.local/share/netwatch, ~/.config/netwatch)
+# are not touched; the database is upgraded automatically on the next start.
+set -eu
+
+PROG=netwatch-update
+YES=0
+CHECK=0
+FORCE=0
+RESTART=1
+METHOD=
+SOURCE=
+
+usage() {
+    cat <<EOF
+Usage: $PROG [options] [SOURCE]
+
+Update NetWatch from SOURCE: a release .zip, a .tar.gz, or an unpacked source folder.
+Without SOURCE, the source folder this script lives in is used (if it is one).
+
+Options:
+  -y, --yes          do not ask for confirmation
+  -c, --check        only show the installed and the new version
+  -f, --force        reinstall even if the new version is not newer
+      --no-restart   do not start NetWatch again after updating
+      --method M     install as M instead of detecting it: deb, rpm or make
+  -h, --help         show this help
+EOF
+}
+
+say() { printf '%s\n' "$*"; }
+die() { printf '%s: %s\n' "$PROG" "$*" >&2; exit 1; }
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -y|--yes) YES=1 ;;
+        -c|--check) CHECK=1 ;;
+        -f|--force) FORCE=1 ;;
+        --no-restart) RESTART=0 ;;
+        --method) [ $# -ge 2 ] || die "--method needs a value"; METHOD=$2; shift ;;
+        --method=*) METHOD=${1#--method=} ;;
+        -h|--help) usage; exit 0 ;;
+        -*) die "unknown option: $1 (see --help)" ;;
+        *) [ -z "$SOURCE" ] || die "only one SOURCE may be given"; SOURCE=$1 ;;
+    esac
+    shift
+done
+case "$METHOD" in ""|deb|rpm|make) ;; *) die "--method must be deb, rpm or make" ;; esac
+
+if [ "$(id -u)" = 0 ]; then
+    say "Note: run $PROG as your normal user; it asks for your password (sudo) only to install."
+    RESTART=0
+fi
+SUDO=
+[ "$(id -u)" = 0 ] || SUDO=sudo
+
+WORK=$(mktemp -d "${TMPDIR:-/tmp}/netwatch-update.XXXXXX")
+trap 'rm -rf "$WORK"' EXIT INT TERM
+
+# -- locate the new sources ----------------------------------------------------
+find_tree() {  # print the folder under $1 that contains netwatch/__init__.py
+    for d in "$1" "$1"/*; do
+        if [ -f "$d/netwatch/__init__.py" ] && [ -f "$d/packaging/build-deb.sh" ]; then
+            printf '%s\n' "$d"; return 0
+        fi
+    done
+    return 1
+}
+
+if [ -z "$SOURCE" ]; then
+    here=$(cd "$(dirname "$0")" && pwd)
+    for d in "$here" "$here/.."; do
+        if [ -f "$d/netwatch/__init__.py" ] && [ -f "$d/packaging/build-deb.sh" ]; then
+            SOURCE=$(cd "$d" && pwd)
+        fi
+    done
+    [ -n "$SOURCE" ] || { usage >&2; die "no SOURCE given — pass the downloaded NetWatch .zip or folder"; }
+fi
+[ -e "$SOURCE" ] || die "$SOURCE does not exist"
+
+mkdir "$WORK/src"
+case "$SOURCE" in
+    *.zip)
+        if command -v unzip >/dev/null; then
+            unzip -q "$SOURCE" -d "$WORK/src"
+        else
+            python3 -m zipfile -e "$SOURCE" "$WORK/src"
+        fi ;;
+    *.tar.gz|*.tgz|*.tar.xz|*.tar)
+        tar -xf "$SOURCE" -C "$WORK/src" ;;
+    *)
+        [ -d "$SOURCE" ] || die "$SOURCE is not a .zip, a tarball or a folder"
+        tree=$(find_tree "$SOURCE") || die "$SOURCE does not look like a NetWatch source folder"
+        # build from a copy so the user's folder stays clean
+        (cd "$tree" && tar --exclude=./build --exclude=./.git --exclude='__pycache__' -cf - .) | tar -xf - -C "$WORK/src" ;;
+esac
+TREE=$(find_tree "$WORK/src") || die "no NetWatch sources found in $SOURCE"
+
+NEW=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' "$TREE/netwatch/__init__.py")
+[ -n "$NEW" ] || die "cannot read the version of the new sources"
+
+# -- find out how the current version was installed ------------------------------
+INSTALLED=
+DETECTED=
+if command -v dpkg-query >/dev/null && dpkg-query -W -f='${Status}' netwatch 2>/dev/null | grep -q "ok installed"; then
+    DETECTED=deb
+    INSTALLED=$(dpkg-query -W -f='${Version}' netwatch | sed 's/-[^-]*$//')
+elif command -v rpm >/dev/null && rpm -q netwatch >/dev/null 2>&1; then
+    DETECTED=rpm
+    INSTALLED=$(rpm -q --qf '%{VERSION}' netwatch)
+elif command -v netwatch >/dev/null; then
+    DETECTED=make
+    INSTALLED=$(netwatch --version 2>/dev/null | awk '{print $NF}') || INSTALLED=
+fi
+[ -n "$METHOD" ] || METHOD=$DETECTED
+if [ -z "$METHOD" ]; then
+    if command -v apt >/dev/null && command -v dpkg-deb >/dev/null; then METHOD=deb
+    elif command -v dnf >/dev/null; then METHOD=rpm
+    else METHOD=make
+    fi
+    say "NetWatch does not seem to be installed yet; it will be installed as a $METHOD package."
+fi
+
+say "Installed version: ${INSTALLED:-none}${DETECTED:+ ($DETECTED)}"
+say "New version:       $NEW"
+[ "$CHECK" = 0 ] || exit 0
+
+# newer?  sort -V orders version strings the way package managers do
+if [ -n "$INSTALLED" ] && [ "$FORCE" = 0 ]; then
+    if [ "$INSTALLED" = "$NEW" ]; then
+        say "NetWatch $NEW is already installed. Use --force to reinstall it."; exit 0
+    fi
+    newest=$(printf '%s\n%s\n' "$INSTALLED" "$NEW" | sort -V | tail -n1)
+    [ "$newest" = "$NEW" ] || die "the new sources ($NEW) are older than the installed version ($INSTALLED); use --force to downgrade"
+fi
+
+if [ "$YES" = 0 ]; then
+    printf 'Update NetWatch to %s? [Y/n] ' "$NEW"
+    read -r answer || answer=n
+    case "$answer" in ""|y|Y|yes|Yes) ;; *) say "Cancelled."; exit 1 ;; esac
+fi
+
+# -- build -------------------------------------------------------------------------
+case "$METHOD" in
+    deb)
+        command -v dpkg-deb >/dev/null || die "dpkg-deb not found (it is part of every Debian/Ubuntu system)"
+        say "Building the .deb package…"
+        (cd "$TREE" && ./packaging/build-deb.sh >/dev/null)
+        PKG=$(ls "$TREE"/build/netwatch_*_all.deb) ;;
+    rpm)
+        if ! command -v rpmbuild >/dev/null; then
+            say "rpmbuild is needed to build the package; installing rpm-build…"
+            $SUDO dnf install -y rpm-build make python3
+        fi
+        say "Building the .rpm package…"
+        (cd "$TREE" && ./packaging/build-rpm.sh >/dev/null)
+        PKG=$(ls "$TREE"/build/rpm/RPMS/noarch/netwatch-*.rpm) ;;
+    make)
+        command -v make >/dev/null || die "make not found" ;;
+esac
+
+# -- stop the running app so the new code is used ---------------------------------------
+# The app closes its monitoring session cleanly on SIGTERM, so the restart shows up
+# in the history as a short "not running" gap and never as an outage.
+PIDS=$(pgrep -u "$(id -u)" -x netwatch || true)
+WAS_RUNNING=0
+BACKGROUND=0
+if [ -n "$PIDS" ]; then
+    WAS_RUNNING=1
+    for pid in $PIDS; do
+        if tr '\0' '\n' < "/proc/$pid/cmdline" 2>/dev/null | grep -qx -- --background; then BACKGROUND=1; fi
+    done
+    say "Stopping the running NetWatch…"
+    kill -TERM $PIDS 2>/dev/null || true
+    i=0
+    while pgrep -u "$(id -u)" -x netwatch >/dev/null && [ $i -lt 50 ]; do sleep 0.2; i=$((i + 1)); done
+    if pgrep -u "$(id -u)" -x netwatch >/dev/null; then
+        say "NetWatch did not exit in time; it will use the new version after its next restart."
+        WAS_RUNNING=0
+    fi
+fi
+
+# -- install --------------------------------------------------------------------
+say "Installing (you may be asked for your password)…"
+case "$METHOD" in
+    deb)
+        cp "$PKG" "$WORK/"
+        PKG="$WORK/$(basename "$PKG")"
+        chmod 644 "$PKG"; chmod 755 "$WORK"   # apt's sandbox user must be able to read it
+        if [ "$FORCE" = 1 ]; then
+            $SUDO apt-get install -y --reinstall --allow-downgrades "$PKG"
+        else
+            $SUDO apt-get install -y "$PKG"
+        fi ;;
+    rpm)
+        if [ -n "$INSTALLED" ] && [ "$FORCE" = 1 ]; then
+            [ "$INSTALLED" = "$NEW" ] && action=reinstall || action=downgrade
+            $SUDO dnf "$action" -y "$PKG" || $SUDO rpm -Uvh --force "$PKG"
+        else
+            $SUDO dnf install -y "$PKG"
+        fi ;;
+    make)
+        (cd "$TREE" && $SUDO make install PYTHON="${PYTHON:-python3}") ;;
+esac
+
+# refresh icon and desktop caches so the menu entry stays current
+$SUDO gtk-update-icon-cache -q -t /usr/share/icons/hicolor 2>/dev/null || true
+$SUDO update-desktop-database -q /usr/share/applications 2>/dev/null || true
+
+say "NetWatch $(netwatch --version 2>/dev/null | awk '{print $NF}') is installed. Your history and settings were kept."
+
+if [ "$WAS_RUNNING" = 1 ] && [ "$RESTART" = 1 ]; then
+    if [ -n "${WAYLAND_DISPLAY:-}${DISPLAY:-}" ]; then
+        say "Starting NetWatch again…"
+        if [ "$BACKGROUND" = 1 ]; then
+            nohup setsid netwatch --background >/dev/null 2>&1 &
+        else
+            nohup setsid netwatch >/dev/null 2>&1 &
+        fi
+    else
+        say "Start NetWatch again from your applications menu."
+    fi
+fi

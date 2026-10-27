@@ -1,3 +1,11 @@
+netwatch (1.1.0-1) unstable; urgency=medium
+
+  * Louder, selectable alert sounds and custom sound files.
+  * History, details and reports show which network each entry belongs to.
+  * New netwatch-update command for in-place updates.
+
+ -- NetWatch contributors <netwatch@example.invalid>  Tue, 27 Oct 2026 12:00:00 +0000
+
 netwatch (1.0.0-1) unstable; urgency=medium
 
   * First release.

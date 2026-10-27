@@ -1,9 +1,12 @@
 """Sound alerts.
 
 ``AlertManager`` is pure policy (driven by state changes and a 1 s ``tick``);
-``SoundPlayer`` plays short generated WAV files through whichever command
-line player exists (pw-play, paplay, aplay).  The default outage sound is a
-soft, low "heartbeat" double-thump; recovery is a gentle rising two-tone.
+``SoundPlayer`` plays generated WAV files or a user-chosen sound file through
+whichever command line player exists (pw-play, paplay, aplay).
+
+The built-in sounds are tuned to 700-1800 Hz, where laptop and monitor
+speakers are loudest (the original low "heartbeat" was barely audible on
+small speakers).
 """
 
 from __future__ import annotations
@@ -23,12 +26,27 @@ from netwatch.paths import cache_dir
 log = logging.getLogger(__name__)
 
 RATE = 22050
+SYNTH_VERSION = 2  # bump whenever synthesize() changes so cached WAVs are regenerated
+
+OUTAGE_SOUNDS = {
+    "alarm": "Alarm (three loud beeps)",
+    "siren": "Siren (two-tone)",
+    "beep": "Single beep",
+    "heartbeat": "Heartbeat (quiet)",
+    "custom": "Custom sound file…",
+}
+RECOVERY_SOUNDS = {
+    "chime": "Chime (rising)",
+    "beep": "Single beep",
+    "custom": "Custom sound file…",
+}
+SOUND_FILE_TYPES = (".wav", ".ogg", ".oga", ".flac", ".mp3")
 
 
 class Player(Protocol):
     available: bool
 
-    def play(self, kind: str, volume: int) -> None: ...
+    def play(self, sound: str, volume: int) -> None: ...
 
     def stop(self) -> None: ...
 
@@ -44,33 +62,60 @@ def _envelope(i: int, n: int, attack: float = 0.02, release: float = 0.6) -> flo
     return 1.0
 
 
-def synthesize(kind: str, volume: int) -> bytes:
-    """Return 16-bit mono PCM samples for ``kind`` at ``volume`` (0-100)."""
-    gain = max(0, min(100, volume)) / 100 * 0.9
+def synthesize(style: str, volume: int) -> bytes:
+    """16-bit mono PCM for a built-in sound ``style`` at ``volume`` (0-100), peak-normalised."""
     samples: list[float] = []
 
-    def tone(freqs: list[float], seconds: float, amp: float, release: float = 0.6) -> None:
+    def tone(freqs: list[float], seconds: float, amp: float = 1.0, attack: float = 0.02, release: float = 0.3) -> None:
         n = int(RATE * seconds)
+        weights = [1.0] + [0.45] * (len(freqs) - 1)  # fundamental plus quieter harmonics
+        norm = sum(weights)
         for i in range(n):
             t = i / RATE
-            v = sum(math.sin(2 * math.pi * f * t) for f in freqs) / len(freqs)
-            samples.append(v * amp * _envelope(i, n, release=release))
+            v = sum(w * math.sin(2 * math.pi * f * t) for f, w in zip(freqs, weights)) / norm
+            samples.append(v * amp * _envelope(i, n, attack, release))
 
     def silence(seconds: float) -> None:
         samples.extend([0.0] * int(RATE * seconds))
 
-    if kind == "outage":  # lub-dub heartbeat
-        tone([70, 140], 0.13, 1.0, release=0.8)
-        silence(0.09)
-        tone([62, 124], 0.16, 0.8, release=0.85)
-        silence(0.15)
-    elif kind == "recovery":
-        tone([660, 1320], 0.12, 0.35)
+    if style == "alarm":
+        for _ in range(3):
+            tone([880, 1760], 0.16, release=0.15)
+            silence(0.07)
+    elif style == "siren":
+        for _ in range(2):
+            tone([740, 1480], 0.22, release=0.1)
+            tone([988, 1976], 0.22, release=0.1)
+    elif style == "beep":
+        tone([1000, 2000], 0.35, release=0.2)
+    elif style == "heartbeat":  # lub-dub, with harmonics small speakers can reproduce
+        tone([220, 440, 660], 0.12, 0.8, release=0.8)
+        silence(0.08)
+        tone([196, 392, 588], 0.15, 0.65, release=0.85)
+        silence(0.1)
+    elif style == "chime":
+        tone([660, 1320], 0.14, 0.9)
         silence(0.03)
-        tone([880, 1760], 0.22, 0.35, release=0.8)
-    else:  # test / generic
-        tone([523], 0.2, 0.4)
-    return b"".join(struct.pack("<h", int(max(-1.0, min(1.0, s * gain)) * 32767)) for s in samples)
+        tone([880, 1760], 0.28, 0.9, release=0.7)
+    else:
+        tone([880, 1760], 0.2)
+    peak = max((abs(x) for x in samples), default=1.0) or 1.0
+    gain = max(0, min(100, volume)) / 100 / peak  # normalise: 100% volume = full scale
+    return b"".join(struct.pack("<h", int(max(-1.0, min(1.0, x * gain)) * 32767)) for x in samples)
+
+
+def check_sound_file(path: str, backend: Optional[str]) -> Optional[str]:
+    """Return a problem description, or None if ``path`` can be used as an alert sound."""
+    if not path:
+        return "Choose a sound file."
+    p = Path(path).expanduser()
+    if not p.is_file():
+        return f"{p} does not exist."
+    if p.suffix.lower() not in SOUND_FILE_TYPES:
+        return "Use a .wav, .ogg, .oga, .flac or .mp3 file."
+    if backend == "aplay" and p.suffix.lower() != ".wav":
+        return "Only .wav files can be played with aplay; install pipewire or pulseaudio utilities for other formats."
+    return None
 
 
 class SoundPlayer:
@@ -92,9 +137,9 @@ class SoundPlayer:
     def backend_name(self) -> str:
         return Path(self.backend[0]).name if self.backend else "none"
 
-    def sound_file(self, kind: str, volume: int) -> Path:
+    def sound_file(self, style: str, volume: int) -> Path:
         volume = int(round(volume / 5) * 5)
-        path = self.directory / f"{kind}-{volume}.wav"
+        path = self.directory / f"v{SYNTH_VERSION}-{style}-{volume}.wav"
         if not path.exists():
             self.directory.mkdir(parents=True, exist_ok=True)
             tmp = path.with_suffix(".tmp")
@@ -102,7 +147,7 @@ class SoundPlayer:
                 wav.setnchannels(1)
                 wav.setsampwidth(2)
                 wav.setframerate(RATE)
-                wav.writeframes(synthesize(kind, volume))
+                wav.writeframes(synthesize(style, volume))
             tmp.replace(path)
         return path
 
@@ -110,19 +155,35 @@ class SoundPlayer:
         with self._lock:
             return self._proc is not None and self._proc.poll() is None
 
-    def play(self, kind: str, volume: int) -> None:
+    def command(self, sound: str, volume: int) -> Optional[list[str]]:
+        """Player command for a built-in style name or a path to a sound file."""
+        if "/" in sound or Path(sound).suffix.lower() in SOUND_FILE_TYPES:
+            if check_sound_file(sound, self.backend_name):
+                return None
+            name = self.backend_name
+            if name == "pw-play":
+                return [*self.backend, f"--volume={volume / 100:.2f}", str(Path(sound).expanduser())]
+            if name == "paplay":
+                return [*self.backend, f"--volume={int(volume / 100 * 65536)}", str(Path(sound).expanduser())]
+            return [*self.backend, str(Path(sound).expanduser())]  # aplay has no volume option
+        return [*self.backend, str(self.sound_file(sound, volume))]
+
+    def play(self, sound: str, volume: int) -> None:
         if not self.available or volume <= 0:
             return
         try:
-            path = self.sound_file(kind, volume)
+            argv = self.command(sound, volume)
         except OSError as exc:
             log.warning("cannot write sound file: %s", exc)
+            return
+        if argv is None:
+            log.warning("cannot play sound %s", sound)
             return
         self.stop()
         with self._lock:
             try:
                 self._proc = subprocess.Popen(
-                    [*self.backend, str(path)],
+                    argv,
                     stdin=subprocess.DEVNULL,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
@@ -166,9 +227,20 @@ class AlertManager:
     def _audible(self) -> bool:
         return bool(self.setting("sound_enabled")) and not self.muted and self.player.available
 
+    def resolve(self, kind: str) -> str:
+        """Configured sound (built-in style name or file path) for ``outage`` / ``recovery``."""
+        style = str(self.setting(f"{kind}_sound_style"))
+        if style == "custom":
+            path = str(self.setting(f"{kind}_sound_file") or "")
+            if check_sound_file(path, getattr(self.player, "backend_name", None)) is None:
+                return path
+            log.warning("custom %s sound unusable (%s); using the built-in sound", kind, path)
+            return "alarm" if kind == "outage" else "chime"  # never go silent because a file moved
+        return style
+
     def _play(self, kind: str) -> None:
         self.plays.append(kind)
-        self.player.play(kind, int(self.setting("sound_volume")))
+        self.player.play(self.resolve(kind), int(self.setting("sound_volume")))
 
     def _schedule_repeat(self, now: float) -> None:
         self.next_repeat = now + float(self.setting("sound_repeat_seconds")) if self.setting("sound_repeat") else None
@@ -219,7 +291,7 @@ class AlertManager:
 
     def test_sound(self, kind: str = "outage") -> None:
         if self.player.available:
-            self.player.play(kind, int(self.setting("sound_volume")))
+            self.player.play(self.resolve(kind), int(self.setting("sound_volume")))
 
     def shutdown(self) -> None:
         self.outage_active = False

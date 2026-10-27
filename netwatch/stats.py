@@ -46,6 +46,7 @@ class Segment:
     reason: Optional[str] = None
     synthetic: bool = False  # generated for a gap (app not running)
     outage_id: Optional[int] = None
+    network: Optional[str] = None  # Wi-Fi SSID / connection name in use during this entry
 
     @property
     def duration(self) -> float:
@@ -76,6 +77,7 @@ class OutageInfo:
     full_duration: float
     evidence: list = field(default_factory=list)
     targets: list = field(default_factory=list)
+    network: Optional[str] = None
 
 
 @dataclass
@@ -143,6 +145,7 @@ class DayStats:
     durations: dict
     outage_count: int
     in_range: bool = True
+    networks: list = field(default_factory=list)
 
     @property
     def monitored(self) -> float:
@@ -239,6 +242,7 @@ class ReliabilityService:
                     targets=row["targets"],
                     interface=row["interface"],
                     reason=row["reason"],
+                    network=row["network"] if "network" in row.keys() else None,
                 )
             )
             cursor = max(cursor, e)
@@ -282,6 +286,7 @@ class ReliabilityService:
                     full_duration=max(0.0, o_end - r["started_at"]),
                     evidence=evidence,
                     targets=[dict(t) for t in targets.get(r["id"], [])],
+                    network=r["network"] if "network" in r.keys() else None,
                 )
             )
         return result
@@ -320,6 +325,8 @@ class ReliabilityService:
                 chunk_end = min(seg.end, boundary)
                 if i is not None:
                     days[i].durations[seg.state] += chunk_end - t
+                    if seg.network and seg.network not in days[i].networks:
+                        days[i].networks.append(seg.network)
                 t = chunk_end
         for o in outages:
             i = index_by_day.get(datetime.fromtimestamp(max(o.start, start)).date())

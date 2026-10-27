@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import netwatch.ui  # noqa: E402,F401
 from gi.repository import Gio, GLib  # noqa: E402
 
+from netwatch.alerts import OUTAGE_SOUNDS  # noqa: E402
 from netwatch.models import ConnState, Lifecycle  # noqa: E402
 from netwatch.storage.db import Database  # noqa: E402
 from netwatch.storage.repository import Repository  # noqa: E402
@@ -36,24 +37,24 @@ def seed(path: Path) -> None:
     # 10 days ago: 2 days monitored with one outage; 1 hour ago: one outage
     t0 = now - 10 * DAY
     s = repo.create_session(t0, {}, "test")
-    a = repo.open_state(s, ConnState.ONLINE, t0, targets="1.1.1.1")
+    a = repo.open_state(s, ConnState.ONLINE, t0, targets="1.1.1.1", network="Home WiFi")
     repo.close_state(a, t0 + DAY)
-    b = repo.open_state(s, ConnState.NO_INTERNET, t0 + DAY, targets="1.1.1.1, 8.8.8.8")
+    b = repo.open_state(s, ConnState.NO_INTERNET, t0 + DAY, targets="1.1.1.1, 8.8.8.8", network="Home WiFi")
     repo.close_state(b, t0 + DAY + 600)
-    o = repo.create_outage(s, ConnState.NO_INTERNET, t0 + DAY, t0 + DAY + 10, True, [])
+    o = repo.create_outage(s, ConnState.NO_INTERNET, t0 + DAY, t0 + DAY + 10, True, [], network="Home WiFi")
     repo.close_outage(o, t0 + DAY + 600, "recovered", True, t0 + DAY + 610)
-    c = repo.open_state(s, ConnState.ONLINE, t0 + DAY + 600)
+    c = repo.open_state(s, ConnState.ONLINE, t0 + DAY + 600, network="Home WiFi")
     repo.close_state(c, t0 + 2 * DAY)
     repo.end_session(s, t0 + 2 * DAY)
     t1 = now - 7200
     s2 = repo.create_session(t1, {}, "test")
-    a = repo.open_state(s2, ConnState.ONLINE, t1)
+    a = repo.open_state(s2, ConnState.ONLINE, t1, network="Office")
     repo.close_state(a, t1 + 3000)
     b = repo.open_state(s2, ConnState.NOT_CONNECTED, t1 + 3000)
     repo.close_state(b, t1 + 3120)
-    o = repo.create_outage(s2, ConnState.NOT_CONNECTED, t1 + 3000, t1 + 3005, True, [])
+    o = repo.create_outage(s2, ConnState.NOT_CONNECTED, t1 + 3000, t1 + 3005, True, [], network="Office")
     repo.close_outage(o, t1 + 3120, "recovered", True)
-    c = repo.open_state(s2, ConnState.ONLINE, t1 + 3120)
+    c = repo.open_state(s2, ConnState.ONLINE, t1 + 3120, network="Office")
     repo.close_state(c, t1 + 3600)
     repo.end_session(s2, t1 + 3600)
     db.close()
@@ -195,6 +196,28 @@ def run_scenarios(db_path: Path, mode: str) -> dict:
             h._apply_filters()
 
         @step
+        def network_filter():
+            h = history()
+            options = list(h.network_options)
+            h.network_filter.set_selected(options.index("Office"))
+            office = list(h.filtered)
+            # the disconnection belongs to the network that was lost
+            office_ok = bool(office) and all(
+                s.network == "Office"
+                or (s.outage_id and h.data.outages_by_id[s.outage_id].network == "Office")
+                for s in office
+            )
+            has_disconnect = any(s.state == ConnState.NOT_CONNECTED for s in office)
+            h.network_filter.set_selected(0)
+            h.search.set_text("home wifi")
+            h._apply_filters()
+            search_hits = len(h.filtered)
+            h.search.set_text("")
+            h._apply_filters()
+            results["networks"] = {"options": options, "office_ok": office_ok,
+                                   "has_disconnect": has_disconnect, "search_hits": search_hits}
+
+        @step
         def live_outage_and_hide():
             eng = app.engine
             assert wait_until(lambda: eng.tick_count >= 2 and eng.snapshot.state == ConnState.ONLINE)
@@ -311,6 +334,23 @@ def run_scenarios(db_path: Path, mode: str) -> dict:
             row_interval.set_value(1)
             row_timeout.set_value(1)
             page.save()
+            # custom sound: the file row appears only for "Custom sound file…" and must point to a usable file
+            combo = page.fields["outage_sound_style"][0]
+            file_row = page.sound_file_rows["outage"]
+            hidden_default = not file_row.get_visible()
+            combo.set_selected(len(OUTAGE_SOUNDS) - 1)
+            shown_custom = file_row.get_visible()
+            blocked_without_file = not page.save_btn.get_sensitive()
+            sound = db_path.parent / "alarm.wav"
+            sound.write_bytes(app.sound_player.sound_file("beep", 80).read_bytes())
+            page.extra["outage_sound_file"] = str(sound)
+            page._sync_sound_rows()
+            page._changed()
+            saved_custom = page.save()
+            results["sounds"] = {"hidden_default": hidden_default, "shown_custom": shown_custom,
+                                 "blocked_without_file": blocked_without_file, "saved": saved_custom,
+                                 "style": app.settings.get("outage_sound_style"),
+                                 "file": app.settings.get("outage_sound_file") == str(sound)}
 
         @step
         def export_reports():
