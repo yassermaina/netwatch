@@ -1,9 +1,0 @@
-<resources>
-    <style name="Theme.NetWatch" parent="@android:style/Theme.DeviceDefault.Light.NoActionBar">
-        <item name="android:windowBackground">#FAFAFC</item>
-        <item name="android:colorAccent">#1C6BE0</item>
-        <item name="android:statusBarColor">#FAFAFC</item>
-        <item name="android:navigationBarColor">#FFFFFF</item>
-        <item name="android:windowLightStatusBar">true</item>
-    </style>
-</resources>
