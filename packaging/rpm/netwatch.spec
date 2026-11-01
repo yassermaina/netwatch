@@ -12,7 +12,7 @@ Release:        1%{?dist}
 Summary:        Local-first network connectivity and outage monitor (GTK4/Libadwaita)
 
 License:        MIT
-URL:            https://github.com/netwatch-app/netwatch
+URL:            https://github.com/yassermaina/netwatch
 Source0:        %{name}-%{version}.tar.gz
 BuildArch:      noarch
 

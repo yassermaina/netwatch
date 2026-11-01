@@ -9,7 +9,7 @@ Build-Depends: debhelper-compat (= 13),
                pybuild-plugin-pyproject,
                desktop-file-utils
 Standards-Version: 4.6.2
-Homepage: https://github.com/netwatch-app/netwatch
+Homepage: https://github.com/yassermaina/netwatch
 Rules-Requires-Root: no
 
 Package: netwatch

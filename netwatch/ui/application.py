@@ -341,7 +341,7 @@ class NetWatchApplication(Adw.Application):
             developer_name="NetWatch contributors",
             license_type=Gtk.License.MIT_X11,
             comments="Local-first network connectivity and outage monitor for the Linux desktop.",
-            website="https://github.com/netwatch-app/netwatch",
+            website="https://github.com/yassermaina/netwatch",
         )
         if hasattr(Adw, "AboutDialog"):
             Adw.AboutDialog(**kwargs).present(self.window)

@@ -1,6 +1,6 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: netwatch
-Source: https://github.com/netwatch-app/netwatch
+Source: https://github.com/yassermaina/netwatch
 
 Files: *
 Copyright: 2026 NetWatch contributors

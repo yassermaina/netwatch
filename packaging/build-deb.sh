@@ -31,7 +31,7 @@ Recommends: network-manager, pipewire-bin | pulseaudio-utils | alsa-utils
 Suggests: iw
 Section: net
 Priority: optional
-Homepage: https://github.com/netwatch-app/netwatch
+Homepage: https://github.com/yassermaina/netwatch
 Description: local-first network connectivity and outage monitor
  NetWatch monitors internet connectivity, detects outages, measures latency
  and packet loss, keeps a local SQLite history and exports TXT/CSV/HTML reports.
