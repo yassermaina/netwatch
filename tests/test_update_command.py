@@ -53,7 +53,8 @@ def test_user_prefix_update_needs_no_sudo_and_installs_under_the_prefix(tmp_path
     for stub in stubs.iterdir():
         stub.chmod(0o755)
     prefix = tmp_path / "prefix"
-    env = dict(os.environ, PATH=f"{stubs}:{os.environ['PATH']}", PYTHON=sys.executable)
+    # PYTHONNOUSERSITE: pip must not see (and uninstall) a NetWatch the developer installed in ~/.local.
+    env = dict(os.environ, PATH=f"{stubs}:{os.environ['PATH']}", PYTHON=sys.executable, PYTHONNOUSERSITE="1")
     res = subprocess.run(
         ["sh", str(SCRIPT), "--yes", "--force", "--no-restart", "--method", "make", "--prefix", str(prefix), str(ROOT)],
         capture_output=True, text=True, timeout=180, env=env, cwd=tmp_path,
