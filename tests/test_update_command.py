@@ -35,3 +35,32 @@ def test_rejects_bad_input(tmp_path):
     res = run("--check", str(tmp_path))
     assert res.returncode != 0 and "does not look like a NetWatch source folder" in res.stderr
     assert run("--help").returncode == 0
+
+
+def test_user_prefix_update_needs_no_sudo_and_installs_under_the_prefix(tmp_path):
+    """`--method make --prefix DIR` installs into DIR as a plain user; sudo and a running NetWatch are never touched."""
+    import os
+    import sys
+
+    import pytest
+
+    if subprocess.run([sys.executable, "-c", "import pip, setuptools"], capture_output=True).returncode != 0:
+        pytest.skip("needs pip and setuptools for the project's own make install")
+    stubs = tmp_path / "stubs"
+    stubs.mkdir()
+    (stubs / "sudo").write_text("#!/bin/sh\necho 'sudo must not be used for a user prefix' >&2\nexit 99\n")
+    (stubs / "pgrep").write_text("#!/bin/sh\nexit 1\n")  # pretend no NetWatch is running, so none is stopped
+    for stub in stubs.iterdir():
+        stub.chmod(0o755)
+    prefix = tmp_path / "prefix"
+    env = dict(os.environ, PATH=f"{stubs}:{os.environ['PATH']}", PYTHON=sys.executable)
+    res = subprocess.run(
+        ["sh", str(SCRIPT), "--yes", "--force", "--no-restart", "--method", "make", "--prefix", str(prefix), str(ROOT)],
+        capture_output=True, text=True, timeout=180, env=env, cwd=tmp_path,
+    )
+    assert res.returncode == 0, res.stdout + res.stderr
+    assert (prefix / "bin" / "netwatch-update").is_file()
+    assert (prefix / "share" / "applications" / "io.github.netwatch.NetWatch.desktop").is_file()
+    assert list(prefix.glob("lib/python*/site-packages/netwatch/__init__.py"))
+    assert f"NetWatch {__version__} is installed" in res.stdout
+    assert "sudo must not be used" not in res.stderr

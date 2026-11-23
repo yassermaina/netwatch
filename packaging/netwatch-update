@@ -17,6 +17,7 @@ CHECK=0
 FORCE=0
 RESTART=1
 METHOD=
+PREFIX_OPT=
 SOURCE=
 
 usage() {
@@ -32,6 +33,8 @@ Options:
   -f, --force        reinstall even if the new version is not newer
       --no-restart   do not start NetWatch again after updating
       --method M     install as M instead of detecting it: deb, rpm or make
+      --prefix DIR   for the make method: install under DIR (default: where netwatch is installed now,
+                     else /usr). A prefix you can write to, such as ~/.local, needs no sudo.
   -h, --help         show this help
 EOF
 }
@@ -47,6 +50,8 @@ while [ $# -gt 0 ]; do
         --no-restart) RESTART=0 ;;
         --method) [ $# -ge 2 ] || die "--method needs a value"; METHOD=$2; shift ;;
         --method=*) METHOD=${1#--method=} ;;
+        --prefix) [ $# -ge 2 ] || die "--prefix needs a value"; PREFIX_OPT=$2; shift ;;
+        --prefix=*) PREFIX_OPT=${1#--prefix=} ;;
         -h|--help) usage; exit 0 ;;
         -*) die "unknown option: $1 (see --help)" ;;
         *) [ -z "$SOURCE" ] || die "only one SOURCE may be given"; SOURCE=$1 ;;
@@ -64,6 +69,14 @@ SUDO=
 
 WORK=$(mktemp -d "${TMPDIR:-/tmp}/netwatch-update.XXXXXX")
 trap 'rm -rf "$WORK"' EXIT INT TERM
+
+# Where the make method installs: --prefix, else where netwatch lives now (for example ~/.local), else /usr.
+PREFIX=$PREFIX_OPT
+if [ -z "$PREFIX" ]; then
+    installed_at=$(command -v netwatch 2>/dev/null || true)
+    case "$installed_at" in */bin/netwatch) PREFIX=${installed_at%/bin/netwatch} ;; esac
+fi
+[ -n "$PREFIX" ] || PREFIX=/usr
 
 # -- locate the new sources ----------------------------------------------------
 find_tree() {  # print the folder under $1 that contains netwatch/__init__.py
@@ -164,7 +177,10 @@ case "$METHOD" in
         (cd "$TREE" && ./packaging/build-rpm.sh >/dev/null)
         PKG=$(ls "$TREE"/build/rpm/RPMS/noarch/netwatch-*.rpm) ;;
     make)
-        command -v make >/dev/null || die "make not found" ;;
+        command -v make >/dev/null || die "make not found"
+        # A prefix the user owns (for example ~/.local) is installed without sudo.
+        mkdir -p "$PREFIX/bin" 2>/dev/null || true
+        if [ -w "$PREFIX/bin" ]; then SUDO=; fi ;;
 esac
 
 # -- stop the running app so the new code is used ---------------------------------------
@@ -208,14 +224,18 @@ case "$METHOD" in
             $SUDO dnf install -y "$PKG"
         fi ;;
     make)
-        (cd "$TREE" && $SUDO make install PYTHON="${PYTHON:-python3}") ;;
+        (cd "$TREE" && $SUDO make install PREFIX="$PREFIX" PYTHON="${PYTHON:-python3}") ;;
 esac
 
 # refresh icon and desktop caches so the menu entry stays current
-$SUDO gtk-update-icon-cache -q -t /usr/share/icons/hicolor 2>/dev/null || true
-$SUDO update-desktop-database -q /usr/share/applications 2>/dev/null || true
+if [ "$METHOD" = make ]; then SHARE=$PREFIX/share; else SHARE=/usr/share; fi
+$SUDO gtk-update-icon-cache -q -t "$SHARE/icons/hicolor" 2>/dev/null || true
+$SUDO update-desktop-database -q "$SHARE/applications" 2>/dev/null || true
 
-say "NetWatch $(netwatch --version 2>/dev/null | awk '{print $NF}') is installed. Your history and settings were kept."
+BIN=netwatch
+[ "$METHOD" != make ] || BIN=$PREFIX/bin/netwatch
+VERSION_NOW=$("$BIN" --version 2>/dev/null | awk '{print $NF}') || VERSION_NOW=
+say "NetWatch ${VERSION_NOW:-$NEW} is installed. Your history and settings were kept."
 
 if [ "$WAS_RUNNING" = 1 ] && [ "$RESTART" = 1 ]; then
     if [ -n "${WAYLAND_DISPLAY:-}${DISPLAY:-}" ]; then
