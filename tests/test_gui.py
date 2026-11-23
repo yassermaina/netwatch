@@ -30,7 +30,10 @@ pytestmark = pytest.mark.skipif(
 
 
 def run_driver(tmp_path, mode, tray=False):
-    env = dict(os.environ, GTK_A11Y="none", NO_AT_BRIDGE="1")
+    env = dict(os.environ, GTK_A11Y="none", NO_AT_BRIDGE="1", GDK_BACKEND="x11", GTK_USE_PORTAL="0")
+    # Run on the private Xvfb/D-Bus only: a Wayland desktop's portals must not attach to the real compositor.
+    for var in ("WAYLAND_DISPLAY", "XDG_CURRENT_DESKTOP", "XDG_SESSION_TYPE", "HYPRLAND_INSTANCE_SIGNATURE"):
+        env.pop(var, None)
     for var in ("XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME"):
         env[var] = str(tmp_path / var.lower())
     cmd = [
@@ -44,7 +47,8 @@ def run_driver(tmp_path, mode, tray=False):
         mode,
     ] + (["tray"] if tray else [])
     proc = subprocess.run(cmd, capture_output=True, text=True, timeout=180, env=env, cwd=ROOT)
-    line = next((ln for ln in proc.stdout.splitlines() if ln.startswith("RESULT ")), None)
+    # Helper daemons on the private bus may print an unterminated line just before ours, so look inside the line.
+    line = next((ln[ln.index("RESULT ") :] for ln in proc.stdout.splitlines() if "RESULT " in ln), None)
     assert line, f"driver produced no result\nstdout:{proc.stdout[-2000:]}\nstderr:{proc.stderr[-4000:]}"
     result = json.loads(line[len("RESULT ") :])
     assert "error" not in result, result["error"]
