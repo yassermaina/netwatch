@@ -154,6 +154,7 @@ def test_sysfs_probe_fallback(tmp_path):
     (proc / "route").write_text(route)
     probe = LocalNetworkProbe(sys_root=str(tmp_path))
     probe._bus_failed = True
+    probe._iw = None  # the fake wlan0 must not be looked up with the host's real `iw`
     s = probe.probe()
     assert s.connected is True and s.interface == "wlan0" and s.kind == "wifi"
     assert s.describe() == "Wi-Fi"  # nothing fabricated
