@@ -94,6 +94,7 @@ def main(argv: list[str] | None = None) -> int:
     except (ImportError, ValueError) as exc:
         sys.stderr.write(
             f"{APP_NAME} needs GTK 4, Libadwaita and PyGObject with Cairo support ({exc}).\n"
+            "  Arch/CachyOS:  sudo pacman -S python-gobject python-cairo gtk4 libadwaita\n"
             "  Fedora:        sudo dnf install python3-gobject python3-cairo gtk4 libadwaita\n"
             "  Debian/Ubuntu: sudo apt install python3-gi python3-gi-cairo gir1.2-gtk-4.0 gir1.2-adw-1\n"
         )

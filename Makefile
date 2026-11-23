@@ -15,6 +15,7 @@ all:
 test:
 	@$(PYTHON) -c "import pytest" 2>/dev/null || { \
 		echo "pytest is not installed for $(PYTHON)."; \
+		echo "  Arch/CachyOS:  sudo pacman -S python-pytest"; \
 		echo "  Fedora:        sudo dnf install python3-pytest"; \
 		echo "  Debian/Ubuntu: sudo apt install python3-pytest"; \
 		echo "  (or use a venv created with --system-site-packages so GTK bindings stay visible)"; \

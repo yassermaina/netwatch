@@ -80,7 +80,7 @@ class IcmpAdapter(CheckAdapter):
         if not self.ping_path:
             return (
                 False,
-                "The 'ping' command was not found. Install iputils (Fedora: iputils, Debian/Ubuntu: iputils-ping).",
+                "The 'ping' command was not found. Install iputils (Arch/Fedora: iputils, Debian/Ubuntu: iputils-ping).",
             )
         return True, self.ping_path
 
