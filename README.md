@@ -64,6 +64,42 @@ sudo dnf install python3-gobject python3-cairo gtk4 libadwaita iputils
 sudo apt install python3-gi python3-gi-cairo gir1.2-gtk-4.0 gir1.2-adw-1 iputils-ping
 ```
 
+## Arch / CachyOS
+
+This is the primary platform of the `cachyos` branch (Arch, Hyprland, Noctalia). Everything runs as your normal user; no root is needed to run the app.
+
+```sh
+# 1. Dependencies (snapshot first on btrfs/snapper: sudo snapper -c root create -d "before netwatch deps")
+sudo pacman -S --needed python python-gobject python-cairo gtk4 libadwaita iputils networkmanager iw pipewire \
+    python-pip python-setuptools desktop-file-utils
+sudo pacman -S --needed python-pytest xorg-server-xvfb dbus     # tests only
+
+# 2. Install for your user into ~/.local (bin, applications, icons, metainfo, Python package)
+git clone https://github.com/yassermaina/netwatch.git ~/Workhub/netwatch && cd ~/Workhub/netwatch && git checkout cachyos
+make install PREFIX=$HOME/.local
+desktop-file-validate ~/.local/share/applications/io.github.netwatch.NetWatch.desktop
+
+# 3. Check and run
+ping -c 2 1.1.1.1            # must work as your user (see below)
+netwatch --diagnostics       # headless: versions, network backend, one check per target
+netwatch                     # or: netwatch --background  (hidden, tray icon only)
+```
+
+- **Ping.** NetWatch runs the system `ping` as you. On Arch this works when `net.ipv4.ping_group_range` includes your group (CachyOS default: `0 2147483647`; check with `sysctl net.ipv4.ping_group_range`) or `/usr/bin/ping` has a capability (`getcap /usr/bin/ping`). Never use `setcap` on the app. If ping fails for your user, widen the range narrowly, for example `sudo sysctl net.ipv4.ping_group_range="0 2147483647"`, and persist it in `/etc/sysctl.d/`.
+- **Tray.** The status icon is a StatusNotifierItem and needs a host; Noctalia's bar is one. Check with `busctl --user get-property org.kde.StatusNotifierWatcher /StatusNotifierWatcher org.kde.StatusNotifierWatcher RegisteredStatusNotifierItems`.
+- **Notifications and sound.** Desktop notifications go to Noctalia (`org.freedesktop.Notifications`); sounds use `pw-play`.
+- **Autostart.** The in-app *Launch at login* switch writes an XDG autostart entry, which a Hyprland session started without `uwsm` or `dex` ignores. To start NetWatch hidden at login, add `hl.exec_cmd("netwatch --background")` to `hypr/config/autostart.lua` (not done by default).
+- **Update.** `netwatch-update --yes ~/Workhub/netwatch` (or `./update.sh` the first time, with `--prefix ~/.local` if NetWatch is not installed yet). It installs into the prefix NetWatch is in and uses `sudo` only for a prefix you cannot write.
+- **Uninstall.** Stop it first (`pkill -x netwatch`), then:
+
+```sh
+rm -rf ~/.local/lib/python3*/site-packages/netwatch ~/.local/lib/python3*/site-packages/netwatch-*.dist-info
+rm -f ~/.local/bin/netwatch ~/.local/bin/netwatch-update ~/.local/share/applications/io.github.netwatch.NetWatch.desktop \
+      ~/.local/share/metainfo/io.github.netwatch.NetWatch.metainfo.xml ~/.local/share/icons/hicolor/scalable/apps/io.github.netwatch.NetWatch.svg \
+      ~/.local/share/icons/hicolor/symbolic/apps/io.github.netwatch.NetWatch-*symbolic.svg
+# your data is NOT removed: ~/.local/share/netwatch (history), ~/.config/netwatch, ~/.local/state/netwatch (log)
+```
+
 ## Running from source
 
 ```sh
@@ -128,7 +164,7 @@ The command:
 - stops a running NetWatch cleanly and starts it again afterwards (`--no-restart` skips the restart).
 - refuses to downgrade or reinstall the same version unless you pass `--force`.
 
-Other options: `-y` skips the confirmation and `--method deb|rpm|make` overrides the detection. On Fedora it installs `rpm-build` first if needed.
+Other options: `-y` skips the confirmation, `--method deb|rpm|make` overrides the detection and `--prefix DIR` chooses where the `make` method installs (default: the prefix NetWatch is installed in, else `/usr`; a prefix you can write to, such as `~/.local`, needs no password). On Fedora it installs `rpm-build` first if needed.
 
 ## Using NetWatch
 
@@ -248,6 +284,8 @@ Why there is no libappindicator: it is GTK 3-only and cannot be loaded into a GT
 The tests need **pytest**. Install it from your distribution so it uses the same Python as PyGObject:
 
 ```sh
+# Arch / CachyOS
+sudo pacman -S python-pytest xorg-server-xvfb dbus
 # Fedora
 sudo dnf install python3-pytest
 # Debian / Ubuntu
