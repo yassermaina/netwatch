@@ -353,6 +353,29 @@ def run_scenarios(db_path: Path, mode: str) -> dict:
                                  "file": app.settings.get("outage_sound_file") == str(sound)}
 
         @step
+        def theme_override():
+            # An explicit Light/Dark must beat a shell's user-priority gtk.css; Follow system loads nothing.
+            from gi.repository import Gdk, Gtk
+            shell = Gtk.CssProvider()
+            shell.load_from_string(
+                "@define-color window_bg_color #f3f5fa; :root { --window-bg-color: #f3f5fa; }")
+            display = Gdk.Display.get_default()
+            Gtk.StyleContext.add_provider_for_display(display, shell, Gtk.STYLE_PROVIDER_PRIORITY_USER)
+            observed = {}
+            for theme in ("dark", "light", "system"):
+                app.settings.set("theme", theme)
+                app.apply_settings({"theme"})
+                ctx = GLib.MainContext.default()
+                end = time.time() + 0.4
+                while time.time() < end:
+                    while ctx.pending():
+                        ctx.iteration(False)
+                    time.sleep(0.01)
+                observed[theme] = app._appearance_provider is not None
+            Gtk.StyleContext.remove_provider_for_display(display, shell)
+            results["theme_override"] = observed
+
+        @step
         def export_reports():
             from netwatch import reports
 

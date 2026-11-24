@@ -27,6 +27,7 @@ from netwatch.storage.repository import Repository
 from netwatch.timefmt import format_duration, format_timestamp
 from netwatch.tray import MenuItem, StatusIcon
 from netwatch.ui import background, dialogs
+from netwatch.ui.appearance import USER_PRIORITY_PLUS_ONE, override_css
 
 log = logging.getLogger(__name__)
 
@@ -162,6 +163,16 @@ class NetWatchApplication(Adw.Application):
         manager = Adw.StyleManager.get_default()
         manager.connect("notify::dark", lambda *_: self._sync_dark_css())
         self._sync_dark_css()
+
+    def _sync_appearance_override(self, appearance: str) -> None:
+        # An explicit Light/Dark must beat the desktop shell's user-level gtk.css; Follow system loads nothing.
+        display = Gdk.Display.get_default()
+        if display is None:
+            return
+        if getattr(self, "_appearance_provider", None) is None:
+            self._appearance_provider = Gtk.CssProvider()
+            Gtk.StyleContext.add_provider_for_display(display, self._appearance_provider, USER_PRIORITY_PLUS_ONE)
+        self._appearance_provider.load_from_string(override_css(appearance))
 
     def _sync_dark_css(self) -> None:
         display = Gdk.Display.get_default()
@@ -488,6 +499,7 @@ class NetWatchApplication(Adw.Application):
                 "dark": Adw.ColorScheme.FORCE_DARK,
             }[s.get("theme")]
             Adw.StyleManager.get_default().set_color_scheme(scheme)
+            self._sync_appearance_override(s.get("theme"))
         if "density" in keys and self.window:
             (self.window.add_css_class if s.get("density") == "compact" else self.window.remove_css_class)("nw-compact")
         if "muted" in keys:

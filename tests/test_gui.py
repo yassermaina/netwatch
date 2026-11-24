@@ -125,6 +125,10 @@ def test_settings_validation_and_save(full):
     assert st["interval"] == 3 and not st["unsaved_after"]
 
 
+def test_theme_choice_installs_override_provider(full):
+    assert full["theme_override"] == {"dark": True, "light": True, "system": True}
+
+
 def test_reports_and_pages(full):
     assert all(size > 500 for size in full["reports"].values())
     assert full["pages"]["errors"] == []
